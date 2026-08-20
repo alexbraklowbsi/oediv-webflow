@@ -1,0 +1,186 @@
+  /* Nav Btn Animation */
+  .nav-flex-btn {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nav-flex-button-hider {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    background-color: var(--neon-blau);
+    transform: translateX(-100%);
+    transition: transform 300ms ease-in-out;
+    pointer-events: none;
+  }
+
+  .nav-flex-btn:hover .nav-flex-button-hider,
+  .nav-flex-btn:focus-visible .nav-flex-button-hider {
+    transform: translateX(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav-flex-button-hider {
+      transition: none;
+    }
+  }
+
+  /* Nav language switcher */
+
+  .nav_language-switcher.is-open .nav_language-link.is-current::after {
+    transform: translateY(0.15rem) rotate(225deg);
+  }
+
+  .nav_language-link.is-alternate {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 60;
+    display: none !important;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    height: 2.75rem;
+    padding: 0;
+    background: #fff;
+    border-radius: 2px;
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.1);
+    font-size: 1rem;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .nav_language-switcher.is-open .nav_language-link.is-alternate:not([hidden]) {
+    display: flex !important;
+  }
+
+  .nav_language-link.is-alternate:hover {
+    color: var(--neon-blau);
+  }
+
+  .nav_language-link:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+  }
+  .underline-typo {
+    position: relative;
+    display: inline-block;
+    z-index: 1;
+  }
+  .underline-typo::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 2px;
+    width: 100%;
+    height: 14%;
+    background-color: #e02900;
+    z-index: -1;
+    opacity: 40%;
+  }
+  /* Std Slider */
+  /* Äußerer Container: wird per JS am normalen Seitenraster ausgerichtet */
+  .udesly-container.is-slider {
+    width: var(--std-slider-container-width, 90%);
+    max-width: none;
+    margin-left: var(--std-slider-container-left, 5%);
+    margin-right: 0;
+  }
+
+  /* Gesamter Slider */
+  .std-slider {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Horizontal scrollbarer Bereich bis zum rechten Browserrand */
+  .std-slider-viewport {
+    width: var(--std-slider-viewport-width, 100%);
+    max-width: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-inline: contain;
+
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .std-slider-viewport::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Flex-Track mit Slides */
+  .std-slider-track {
+    box-sizing: content-box;
+    width: max-content;
+    min-width: 100%;
+
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+
+    column-gap: 20px;
+    row-gap: 20px;
+
+    padding-right: var(--std-slider-end-buffer, 5vw);
+  }
+
+  /* Einzelner Slide */
+  .std-slider-slide {
+    box-sizing: border-box;
+    flex: 0 0 var(--std-slider-slide-width, 100%);
+    min-width: 0;
+
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
+  }
+
+  /* Pfeilnavigation */
+  .std-slider-navigation {
+    width: 100%;
+
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+
+    column-gap: 10px;
+    row-gap: 10px;
+  }
+
+  /* Funktionszustände der Pfeile */
+  .std-slider-arrow {
+    flex: none;
+  }
+
+  .std-slider-arrow:disabled {
+    opacity: 0.35;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  /* Bewegung bei entsprechender Systemeinstellung deaktivieren */
+  @media (prefers-reduced-motion: reduce) {
+    .std-slider-viewport {
+      scroll-behavior: auto;
+    }
+  }
+  .std-slider[data-slider-layout='contained'] {
+    --std-slider-viewport-width: 100%;
+    --std-slider-end-buffer: 0px;
+  }
+  /* Ersetzen faq grid bg-color */
+  .faq-gridbox:nth-child(odd) .faq-gridbox-content-wrapper,
+  .faq-gridbox:nth-child(odd) .faq-gridbox-title-wrapper {
+    background-color: #92A2FE; /* Style für ungerade */
+  }
+
+  .faq-gridbox:nth-child(even) {
+    background-color: #4964FD; /* Style für gerade */
+  }
