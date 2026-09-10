@@ -184,3 +184,181 @@
   .faq-gridbox:nth-child(even) {
     background-color: #4964FD; /* Style für gerade */
   }
+
+  /* ==============================
+     TABLET – 991px AND DOWN
+     ============================== */
+
+  @media screen and (max-width: 991px) {
+    /* Wizard Overlay */
+    .mega_menu-mobile-detail {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+
+      width: 100%;
+      height: calc(100dvh - 150px);
+      max-height: calc(100dvh - 150px);
+
+      overflow-y: auto;
+      overflow-x: hidden;
+
+      background: #fff;
+    }
+
+    /* Sicherheit:
+       auch wenn Webflow irgendwo Display setzt */
+    .mega_menu-mobile-detail[hidden] {
+      display: none !important;
+    }
+
+    /* Zurück */
+    .mega_menu-mobile-back {
+      width: 100%;
+
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+
+      gap: 0.5rem;
+
+      margin-bottom: 1.5rem;
+      padding: 0 0 1rem;
+
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+
+      text-align: left;
+      cursor: pointer;
+    }
+
+    /* Zwei Spalten innerhalb des Overlays */
+    .mega_menu-mobile-detail-content {
+      width: 100%;
+
+      display: grid;
+      grid-template-columns:
+        minmax(0, 46%)
+        minmax(0, 54%);
+
+      gap: 2rem;
+      align-items: start;
+
+      text-align: left;
+    }
+
+    /* Die per JS eingeschobenen Panels */
+    .mega_menu-mobile-detail-content > .mega_menu-content-panel {
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      text-align: left;
+    }
+
+    .mega_menu-mobile-detail-content > .mega_menu-content-panel + .mega_menu-content-panel {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    /* Gruppen */
+    .mega_menu-mobile-detail-content .mega_menu-group {
+      width: 100%;
+
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+
+      text-align: left;
+    }
+
+    /* Listen */
+    .mega_menu-mobile-detail-content .mega_menu-list,
+    .mega_menu-mobile-detail-content .mega_related-list {
+      width: 100%;
+
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+
+      gap: 0;
+      text-align: left;
+    }
+
+    /* Gruppenüberschriften */
+    .mega_menu-mobile-detail-content .mega_menu-group-label {
+      display: block;
+
+      width: 100%;
+      margin-bottom: 0.5rem;
+
+      text-align: left;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* Normale Links – nur Layout */
+    .mega_menu-mobile-detail-content a.mega_menu-link:not(.is-card-navlink) {
+      width: 100%;
+
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+
+      padding: 0.75rem 0;
+      text-align: left;
+    }
+
+    /* Related-Gruppen */
+    .mega_menu-mobile-detail-content .mega_menu-list.is-related > .mega_menu-list-item.is-related-group {
+      width: 100%;
+      padding: 0.75rem 0;
+    }
+
+    .mega_menu-mobile-detail-content .mega_menu-list.is-related > .mega_menu-list-item.is-related-group + .mega_menu-list-item.is-related-group {
+      margin-top: 0.5rem;
+    }
+    #nav-trigger-loesungen {
+      position: relative;
+      gap: 0.75rem;
+    }
+
+    #nav-trigger-loesungen::after {
+      width: 0.5rem;
+      height: 0.5rem;
+      flex: 0 0 auto;
+
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+
+      content: '';
+      transform: translateY(-0.15rem) rotate(45deg);
+      transition: transform 180ms ease;
+    }
+
+    #nav-trigger-loesungen[aria-expanded='true']::after {
+      transform: translateY(0.15rem) rotate(225deg);
+    }
+  }
+
+  /* ==============================
+     MOBILE – 767px AND DOWN
+     ============================== */
+
+  @media screen and (max-width: 767px) {
+    .mega_menu-mobile-detail-content {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2rem;
+    }
+
+    /* Jetzt wieder vertikal:
+       zweites Panel unter dem ersten */
+    .mega_menu-mobile-detail-content > .mega_menu-content-panel + .mega_menu-content-panel {
+      margin-top: 0;
+    }
+  }

@@ -1736,3 +1736,1338 @@ function onReady(fn){
     window.addEventListener('resize', requestUpdate);
   });
 })();
+
+  /*
+   * Mega Menu – Ergänzungen
+   * 1) Klick außerhalb schließt das offene Menü
+   * 2) Shift+Tab führt exakt den Tab-Weg zurück (erster Panel-Link -> Auslöse-Button)
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      var megaNav = document.querySelector('[data-mega-nav="true"]');
+      if (!megaNav) return;
+
+      var triggers = Array.from(
+        megaNav.querySelectorAll(".nav_menu-trigger[data-mega-trigger]")
+      );
+
+      var solutionsPanel = document.getElementById("mega-loesungen");
+
+      var sectionButtons = solutionsPanel
+        ? Array.from(solutionsPanel.querySelectorAll("button[data-mega-section]"))
+        : [];
+
+      /* ---- 1) Klick außerhalb schließt das offene Menü ---- */
+      document.addEventListener("click", function (event) {
+        // Klicks innerhalb der Navigation (inkl. Panels) ignorieren
+        if (megaNav.contains(event.target)) return;
+
+        var openTrigger = triggers.find(function (trigger) {
+          return trigger.getAttribute("aria-expanded") === "true";
+        });
+
+        // Bestehende Schließ-Logik des Triggers wiederverwenden (inkl. Animation)
+        if (openTrigger) openTrigger.click();
+      });
+
+      /* ---- 2) Shift+Tab: sauberer Rückweg zum Auslöse-Button ---- */
+      function getFirstFocusable(container) {
+        if (!container) return null;
+        return container.querySelector(
+          [
+            'a[href]:not([tabindex="-1"])',
+            'button:not([disabled]):not([tabindex="-1"])',
+            'input:not([disabled]):not([tabindex="-1"])',
+            '[tabindex]:not([tabindex="-1"])'
+          ].join(",")
+        );
+      }
+
+      sectionButtons.forEach(function (button) {
+        var panelIds = (button.getAttribute("aria-controls") || "")
+          .split(/\s+/)
+          .filter(Boolean);
+
+        var panels = panelIds
+          .map(function (id) {
+            return document.getElementById(id);
+          })
+          .filter(Boolean);
+
+        function firstFocusableAcrossPanels() {
+          for (var i = 0; i < panels.length; i++) {
+            var el = getFirstFocusable(panels[i]);
+            if (el) return el;
+          }
+          return null;
+        }
+
+        panels.forEach(function (panel) {
+          panel.addEventListener("keydown", function (event) {
+            if (event.key !== "Tab" || !event.shiftKey) return;
+            if (button.getAttribute("aria-expanded") !== "true") return;
+
+            // Nur beim ersten Element des Panels zurück auf den Button springen.
+            // Alle weiteren Rückwärts-Schritte laufen bereits natürlich in
+            // DOM-Reihenfolge und spiegeln damit den Hin-Weg.
+            if (event.target !== firstFocusableAcrossPanels()) return;
+
+            event.preventDefault();
+            button.focus();
+          });
+        });
+      });
+    });
+  })();
+
+  /*
+   * Logo Trust Slider – getaktetes Endlos-Marquee, from scratch
+   * - alle 3s eine .logo-trust-slide nach links (ease-in-out 250ms)
+   * - nahtloser Loop über Klone + Offset-Wrap
+   * - Pause bei Hover/Drag, geschmeidiger Drag mit Einrasten
+   * - Gradienten übernehmen die Hintergrundfarbe der Eltern-.udesly-section
+   * - Slide-Breite kommt aus dem Webflow-CSS (wird nur gelesen)
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      /* ---- Feintuning ---- */
+      var AUTO_INTERVAL = 3000;   // ms zwischen den Schritten
+      var STEP_DURATION = 250;    // ms für einen Auto-Schritt (ease-in-out)
+      var SNAP_DURATION = 250;    // ms fürs Einrasten nach dem Drag
+      var AXIS_LOCK = 6;          // px bis die Wischrichtung feststeht
+      var FLICK_PROJECTION = 90;  // ms Nachlauf der Wischgeschwindigkeit
+
+      var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      document.querySelectorAll(".logo-trust-slider").forEach(function (slider) {
+        var mask = slider.querySelector(".logo-trust-slider-mask");
+        if (!mask) return;
+
+        var originalSlides = Array.prototype.slice.call(
+          mask.querySelectorAll(".logo-trust-slide")
+        );
+        if (!originalSlides.length) return;
+
+        var gradients = Array.prototype.slice.call(
+          mask.querySelectorAll(".logo-trust-slider-mask-gradient")
+        );
+
+        /* Gap aus dem ursprünglichen (Flex-)Zustand der Maske lesen,
+           bevor wir sie überschreiben. */
+        var maskStyles = window.getComputedStyle(mask);
+        var gap =
+          parseFloat(maskStyles.columnGap || maskStyles.gap) || 0;
+
+        /* ---- Track anlegen und Slides hineinlegen ---- */
+        var track = document.createElement("div");
+        track.className = "logo-trust-slider-track";
+        originalSlides.forEach(function (slide) {
+          track.appendChild(slide);
+        });
+
+        /* Maske: Wrap zur Laufzeit überschreiben, Gradienten bleiben Kinder */
+        mask.style.display = "block";
+        mask.style.position = "relative";
+        mask.style.overflow = "hidden";
+        mask.style.cursor = "grab";
+        mask.style.touchAction = "pan-y";
+        mask.insertBefore(track, mask.firstChild);
+
+        track.style.display = "flex";
+        track.style.flexWrap = "nowrap";
+        track.style.alignItems = "center";
+        track.style.width = "100%";
+        track.style.columnGap = gap + "px";
+        track.style.willChange = "transform";
+        track.style.transform = "translate3d(0,0,0)";
+        track.style.userSelect = "none";
+
+        gradients.forEach(function (g) {
+          g.style.pointerEvents = "none";
+          g.style.zIndex = "2";
+        });
+
+        function prepSlide(el) {
+          el.style.flexGrow = "0";
+          el.style.flexShrink = "0";
+          el.querySelectorAll("img").forEach(function (img) {
+            img.setAttribute("draggable", "false");
+            img.style.webkitUserDrag = "none";
+          });
+          if (el.tagName === "A") {
+            el.addEventListener("dragstart", function (e) {
+              e.preventDefault();
+            });
+          }
+        }
+        originalSlides.forEach(prepSlide);
+
+        /* ---- Zustand ---- */
+        var offset = 0;      // aktuelle Verschiebung (px), immer in [0, setWidth)
+        var unit = 0;        // Breite einer Slide inkl. Gap
+        var setWidth = 0;    // Breite eines Original-Satzes
+        var viewport = 0;
+
+        var animId = null;
+        var autoTimer = null;
+
+        var isHovered = false;
+        var isVisible = true;
+        var isDragging = false;
+        var moved = false;
+        var suppressClick = false;
+
+        var pointerId = null;
+        var axis = null;
+        var downX = 0;
+        var downY = 0;
+        var dragStartOffset = 0;
+        var velocity = 0;
+        var lastX = 0;
+        var lastT = 0;
+
+        function setTransform() {
+          track.style.transform = "translate3d(" + -offset + "px,0,0)";
+        }
+
+        function wrapOffset() {
+          if (setWidth > 0) {
+            offset = ((offset % setWidth) + setWidth) % setWidth;
+          }
+        }
+
+        function cancelAnim() {
+          if (animId) {
+            cancelAnimationFrame(animId);
+            animId = null;
+          }
+        }
+
+        function animateTo(target, duration, done) {
+          cancelAnim();
+          var start = offset;
+          var dist = target - start;
+
+          if (reducedMotion.matches || duration <= 0 || Math.abs(dist) < 0.5) {
+            offset = target;
+            wrapOffset();
+            setTransform();
+            if (done) done();
+            return;
+          }
+
+          var t0 = null;
+          function frame(now) {
+            if (t0 === null) t0 = now;
+            var p = Math.min(1, (now - t0) / duration);
+            var e =
+              p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // easeInOutQuad
+            offset = start + dist * e;
+            setTransform();
+            if (p < 1) {
+              animId = requestAnimationFrame(frame);
+            } else {
+              animId = null;
+              offset = target;
+              wrapOffset();
+              setTransform();
+              if (done) done();
+            }
+          }
+          animId = requestAnimationFrame(frame);
+        }
+
+        /* ---- Klone aufbauen, damit der Loop lückenlos ist ---- */
+        function rebuild() {
+          Array.prototype.slice
+            .call(track.querySelectorAll('[data-logo-clone="1"]'))
+            .forEach(function (n) {
+              n.remove();
+            });
+
+          viewport = mask.clientWidth;
+          unit = originalSlides[0].getBoundingClientRect().width + gap;
+          setWidth = originalSlides.length * unit;
+          if (!setWidth) return;
+
+          var copies = Math.max(
+            1,
+            Math.ceil((viewport + 2 * unit) / setWidth)
+          );
+
+          for (var c = 0; c < copies; c++) {
+            originalSlides.forEach(function (s) {
+              var clone = s.cloneNode(true);
+              clone.setAttribute("data-logo-clone", "1");
+              clone.setAttribute("aria-hidden", "true");
+              prepSlide(clone);
+              track.appendChild(clone);
+            });
+          }
+
+          wrapOffset();
+          setTransform();
+        }
+
+        /* ---- Gradienten an die Section-Farbe angleichen ---- */
+        function parseRGBA(str) {
+          var m = (str || "").match(/rgba?\(([^)]+)\)/);
+          if (!m) return null;
+          var parts = m[1].split(",").map(function (v) {
+            return parseFloat(v);
+          });
+          return {
+            r: parts[0],
+            g: parts[1],
+            b: parts[2],
+            a: parts.length > 3 ? parts[3] : 1
+          };
+        }
+
+        function effectiveBg(el) {
+          while (el) {
+            var c = parseRGBA(window.getComputedStyle(el).backgroundColor);
+            if (c && c.a > 0) return c;
+            el = el.parentElement;
+          }
+          return { r: 255, g: 255, b: 255, a: 1 };
+        }
+
+        function updateGradients() {
+          var section = slider.closest(".udesly-section") || slider.parentElement;
+          var col = effectiveBg(section);
+          var solid = "rgba(" + col.r + "," + col.g + "," + col.b + ",1)";
+          var clear = "rgba(" + col.r + "," + col.g + "," + col.b + ",0)";
+          var maskRect = mask.getBoundingClientRect();
+
+          gradients.forEach(function (g) {
+            var r = g.getBoundingClientRect();
+            var center = (r.left + r.right) / 2 - maskRect.left;
+            var dir = center < maskRect.width / 2 ? "to right" : "to left";
+            g.style.background =
+              "linear-gradient(" + dir + ", " + solid + " 0%, " + clear + " 100%)";
+          });
+        }
+
+        /* ---- Auto-Lauf ---- */
+        function autoPaused() {
+          return (
+            reducedMotion.matches ||
+            isHovered ||
+            isDragging ||
+            document.hidden ||
+            !isVisible
+          );
+        }
+
+        function step() {
+          animateTo(offset + unit, STEP_DURATION);
+        }
+
+        function stopAuto() {
+          window.clearTimeout(autoTimer);
+          autoTimer = null;
+        }
+
+        function startAuto() {
+          stopAuto();
+          if (reducedMotion.matches) return;
+          autoTimer = window.setTimeout(onTick, AUTO_INTERVAL);
+        }
+
+        function onTick() {
+          if (!autoPaused()) step();
+          autoTimer = window.setTimeout(onTick, AUTO_INTERVAL);
+        }
+
+        /* ---- Drag ---- */
+        function cleanupPointer() {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          window.removeEventListener("pointercancel", onUp);
+          pointerId = null;
+          axis = null;
+        }
+
+        mask.addEventListener("pointerdown", function (e) {
+          if (e.pointerType === "mouse" && e.button !== 0) return;
+
+          cancelAnim();
+          pointerId = e.pointerId;
+          downX = e.clientX;
+          downY = e.clientY;
+          dragStartOffset = offset;
+          isDragging = false;
+          moved = false;
+          axis = null;
+          velocity = 0;
+          lastX = e.clientX;
+          lastT = performance.now();
+
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+          window.addEventListener("pointercancel", onUp);
+        });
+
+        function onMove(e) {
+          if (e.pointerId !== pointerId) return;
+
+          var dx = e.clientX - downX;
+          var dy = e.clientY - downY;
+
+          if (axis === null) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) < AXIS_LOCK) return;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              axis = "h";
+              isDragging = true;
+              mask.style.cursor = "grabbing";
+              downX = e.clientX;
+              dragStartOffset = offset;
+              lastX = e.clientX;
+              lastT = performance.now();
+            } else {
+              // Vertikal: Drag verwerfen, Seite scrollt normal.
+              cleanupPointer();
+              return;
+            }
+          }
+
+          if (axis !== "h") return;
+          moved = true;
+          if (e.cancelable) e.preventDefault();
+
+          var raw = dragStartOffset - (e.clientX - downX);
+          offset = ((raw % setWidth) + setWidth) % setWidth;
+          setTransform();
+
+          var now = performance.now();
+          var dt = now - lastT;
+          if (dt > 0) {
+            var inst = (e.clientX - lastX) / dt;
+            velocity = velocity * 0.6 + inst * 0.4;
+            lastX = e.clientX;
+            lastT = now;
+          }
+        }
+
+        function onUp() {
+          var wasDragging = isDragging;
+          cleanupPointer();
+          isDragging = false;
+          mask.style.cursor = "grab";
+
+          if (moved) {
+            suppressClick = true;
+            window.setTimeout(function () {
+              suppressClick = false;
+            }, 120);
+          }
+
+          if (wasDragging) {
+            // Wischgeschwindigkeit kurz projizieren, dann in die Slide einrasten.
+            var projected = offset - velocity * FLICK_PROJECTION;
+            var target = Math.round(projected / unit) * unit;
+            if (target < 0) {
+              // Nahtlos in den geklonten Bereich rechts verschieben.
+              offset += setWidth;
+              target += setWidth;
+              setTransform();
+            }
+            animateTo(target, SNAP_DURATION);
+          } else {
+            // Reiner Tap: auf die nächste Slide ausrichten (falls mitten drin gestoppt).
+            animateTo(Math.round(offset / unit) * unit, SNAP_DURATION);
+          }
+
+          startAuto();
+        }
+
+        mask.addEventListener(
+          "click",
+          function (e) {
+            if (!suppressClick) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          },
+          true
+        );
+
+        /* ---- Pausen ---- */
+        slider.addEventListener("mouseenter", function () {
+          isHovered = true;
+        });
+        slider.addEventListener("mouseleave", function () {
+          isHovered = false;
+          startAuto();
+        });
+
+        if ("IntersectionObserver" in window) {
+          new IntersectionObserver(function (entries) {
+            isVisible = entries[0].isIntersecting;
+          }).observe(slider);
+        }
+
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden) startAuto();
+        });
+
+        reducedMotion.addEventListener("change", function () {
+          if (reducedMotion.matches) {
+            cancelAnim();
+            stopAuto();
+          } else {
+            startAuto();
+          }
+        });
+
+        /* ---- Resize ---- */
+        var resizeFrame;
+        window.addEventListener("resize", function () {
+          cancelAnimationFrame(resizeFrame);
+          resizeFrame = requestAnimationFrame(function () {
+            offset = Math.round(offset / (unit || 1)) * (unit || 1);
+            rebuild();
+            updateGradients();
+          });
+        });
+
+        /* ---- Start ---- */
+        rebuild();
+        updateGradients();
+        startAuto();
+      });
+    });
+  })();
+
+  /*
+   * Hero Hub Square
+   * - .hero-hub-square = 50% der Breite von .udesly-container.is-hero.is-hub
+   *   (Breite = Höhe -> bleibt quadratisch)
+   * - vertikal in der Section zentriert, horizontal rechts
+   * - Section: min-height = Quadrat + vertikales Padding + Puffer
+   * - < 768px: Script deaktiviert sich und setzt Inline-Styles zurück
+   *   (manuelle Mobile-Steuerung im Webflow)
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      /* ---- Feintuning ---- */
+      var BREAKPOINT = 768;    // ab hier abwärts übernimmt manuelles CSS
+      var EXTRA_BUFFER = 60;   // px zusätzlicher vertikaler Puffer
+
+      var squares = Array.prototype.slice.call(
+        document.querySelectorAll(".hero-hub-square")
+      );
+      if (!squares.length) return;
+
+      var items = squares
+        .map(function (square) {
+          var container =
+            square.closest(".udesly-container.is-hero.is-hub") ||
+            square.closest(".udesly-container");
+          var section =
+            square.closest(".udesly-section.is-hero.is-hub-page") ||
+            square.closest(".udesly-section");
+          if (!container) return null;
+          return { square: square, container: container, section: section };
+        })
+        .filter(Boolean);
+
+      if (!items.length) return;
+
+      function reset(item) {
+        item.square.style.width = "";
+        item.square.style.height = "";
+        item.square.style.top = "";
+        item.square.style.bottom = "";
+        item.square.style.transform = "";
+        if (item.section) item.section.style.minHeight = "";
+      }
+
+      function applyOne(item) {
+        var width = item.container.getBoundingClientRect().width;
+        if (!width) return;
+
+        var size = width / 2;
+
+        // Quadrat: Breite = Höhe
+        item.square.style.width = size + "px";
+        item.square.style.height = size + "px";
+
+        // Vertikal zentrieren (überschreibt bottom: 0)
+        item.square.style.bottom = "auto";
+        item.square.style.top = "50%";
+        item.square.style.transform = "translateY(-50%)";
+
+        // Section hoch genug halten + vorhandenes Padding + Puffer
+        if (item.section) {
+          var cs = window.getComputedStyle(item.section);
+          var padTop = parseFloat(cs.paddingTop) || 0;
+          var padBottom = parseFloat(cs.paddingBottom) || 0;
+          item.section.style.minHeight =
+            size + padTop + padBottom + EXTRA_BUFFER + "px";
+        }
+      }
+
+      var frame = null;
+      function scheduleAll() {
+        if (frame) return;
+        frame = requestAnimationFrame(function () {
+          frame = null;
+          var mobile = window.innerWidth < BREAKPOINT;
+          items.forEach(function (item) {
+            if (mobile) reset(item);
+            else applyOne(item);
+          });
+        });
+      }
+
+      window.addEventListener("resize", scheduleAll);
+      window.addEventListener("orientationchange", scheduleAll);
+      window.addEventListener("load", scheduleAll);
+
+      scheduleAll();
+    });
+  })();
+
+  /*
+   * FAQ Accordion (schlank)
+   * - Klick auf .faq-question-wrapper öffnet/schließt das .faq-element
+   * - pro .faq-wrapper ist immer nur ein Element offen; Wrapper sind unabhängig
+   * - Pfeil .is-faq-indicatior dreht beim Öffnen nach oben
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      var DURATION = 300; // ms
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      var wrappers = Array.prototype.slice.call(
+        document.querySelectorAll(".faq-wrapper")
+      );
+      if (!wrappers.length) return;
+
+      var uid = 0;
+
+      wrappers.forEach(function (wrapper) {
+        var elements = Array.prototype.slice
+          .call(wrapper.querySelectorAll(".faq-element"))
+          .map(function (el) {
+            var header = el.querySelector(".faq-question-wrapper");
+            var content = el.querySelector(".faq-content-wrapper");
+            var arrow = el.querySelector(".is-faq-indicatior");
+            if (!header || !content) return null;
+            return { el: el, header: header, content: content, arrow: arrow };
+          })
+          .filter(Boolean);
+
+        function closeItem(item) {
+          if (!item.el.classList.contains("is-open")) return;
+          setOpen(item, false);
+        }
+
+        function setOpen(item, open) {
+          item.el.classList.toggle("is-open", open);
+          item.header.setAttribute("aria-expanded", String(open));
+          item.content.inert = !open;
+
+          if (item.arrow) {
+            item.arrow.style.transform = open ? "rotate(180deg)" : "rotate(0deg)";
+          }
+
+          var content = item.content;
+
+          if (reduced) {
+            content.style.height = open ? "auto" : "0px";
+            content.style.overflow = open ? "" : "hidden";
+            return;
+          }
+
+          content.style.overflow = "hidden";
+
+          if (open) {
+            content.style.height = content.scrollHeight + "px";
+            var onEnd = function (e) {
+              if (e.propertyName !== "height") return;
+              content.removeEventListener("transitionend", onEnd);
+              if (item.el.classList.contains("is-open")) {
+                content.style.height = "auto";
+                content.style.overflow = "";
+              }
+            };
+            content.addEventListener("transitionend", onEnd);
+          } else {
+            // von aktueller Höhe -> 0 (erst px fixieren, dann animieren)
+            content.style.height = content.getBoundingClientRect().height + "px";
+            content.getBoundingClientRect(); // Reflow erzwingen
+            requestAnimationFrame(function () {
+              content.style.height = "0px";
+            });
+          }
+        }
+
+        elements.forEach(function (item, index) {
+          var contentId =
+            item.content.id || "faq-content-" + ++uid;
+          item.content.id = contentId;
+
+          item.header.setAttribute("role", "button");
+          item.header.setAttribute("tabindex", "0");
+          item.header.setAttribute("aria-controls", contentId);
+          item.header.setAttribute("aria-expanded", "false");
+          item.header.style.cursor = "pointer";
+
+          item.content.setAttribute("role", "region");
+          item.content.style.height = "0px";
+          item.content.style.overflow = "hidden";
+          item.content.inert = true;
+
+          if (!reduced) {
+            item.content.style.transition = "height " + DURATION + "ms ease";
+            if (item.arrow) {
+              item.arrow.style.transition = "transform " + DURATION + "ms ease";
+            }
+          }
+
+          function toggle() {
+            var willOpen = !item.el.classList.contains("is-open");
+            // andere im selben Wrapper schließen
+            elements.forEach(function (other) {
+              if (other !== item) closeItem(other);
+            });
+            setOpen(item, willOpen);
+          }
+
+          item.header.addEventListener("click", toggle);
+
+          item.header.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              toggle();
+            }
+          });
+        });
+      });
+    });
+  })();
+
+(function () {
+  /*
+   * Mobile Menu
+   */
+  onReady(function () {
+    "use strict";
+
+    const burgerButton = document.querySelector(".burger-btn");
+    const mobileMenu = document.getElementById("nav-primary-menu");
+
+    const solutionsTrigger = document.getElementById(
+      "nav-trigger-loesungen"
+    );
+
+    const solutionsPanel = document.getElementById(
+      "mega-loesungen"
+    );
+
+    const solutionsItem = solutionsTrigger
+      ? solutionsTrigger.closest(".nav_menu-item")
+      : null;
+
+    const megaMenuLayer = document.querySelector(
+      ".mega_menu-layer"
+    );
+
+    const megaGrid = solutionsPanel
+      ? solutionsPanel.querySelector(".mega_menu-grid")
+      : null;
+
+    const mobileDetail = document.getElementById(
+      "mega_menu-mobile-detail"
+    );
+
+    const mobileDetailContent = mobileDetail
+      ? mobileDetail.querySelector(
+          ".mega_menu-mobile-detail-content"
+        )
+      : null;
+
+    const mobileBackButton = mobileDetail
+      ? mobileDetail.querySelector(
+          ".mega_menu-mobile-back"
+        )
+      : null;
+
+    const sectionButtons = solutionsPanel
+      ? Array.from(
+          solutionsPanel.querySelectorAll(
+            "button[data-mega-section]"
+          )
+        )
+      : [];
+
+    const mobileBreakpoint = window.matchMedia(
+      "(max-width: 991px)"
+    );
+
+    if (!burgerButton || !mobileMenu) return;
+
+    const burgerIcon = burgerButton.querySelector(
+      ".g-material-icon-text"
+    );
+
+    let activeWizardTrigger = null;
+
+    /*
+     * Ursprüngliche Desktop-Position
+     * des kompletten Lösungen-Panels merken.
+     */
+    let solutionsPlaceholder = null;
+
+    if (
+      solutionsPanel &&
+      megaMenuLayer &&
+      solutionsPanel.parentNode === megaMenuLayer
+    ) {
+      solutionsPlaceholder =
+        document.createComment("mega-loesungen-position");
+
+      megaMenuLayer.insertBefore(
+        solutionsPlaceholder,
+        solutionsPanel
+      );
+    }
+
+    /*
+     * Ursprüngliche Positionen aller
+     * Subpages-/Related-Panels merken.
+     */
+    const panelRecords = [];
+
+    sectionButtons.forEach(function (button) {
+      const controlledIds = (
+        button.getAttribute("aria-controls") || ""
+      )
+        .split(/\s+/)
+        .filter(Boolean);
+
+      controlledIds.forEach(function (id) {
+        const panel = document.getElementById(id);
+
+        if (!panel || !panel.parentNode) return;
+
+        const placeholder = document.createComment(
+          "original-position-" + id
+        );
+
+        panel.parentNode.insertBefore(
+          placeholder,
+          panel
+        );
+
+        panelRecords.push({
+          panel: panel,
+          placeholder: placeholder
+        });
+      });
+    });
+
+    function openMenu() {
+      mobileMenu.classList.add("is-open");
+
+      burgerButton.setAttribute(
+        "aria-expanded",
+        "true"
+      );
+
+      burgerButton.setAttribute(
+        "aria-label",
+        "Menü schließen"
+      );
+
+      if (burgerIcon) {
+        burgerIcon.textContent = "close";
+      }
+    }
+
+    function closeMenu() {
+      closeWizard(false);
+
+      mobileMenu.classList.remove("is-open");
+
+      burgerButton.setAttribute(
+        "aria-expanded",
+        "false"
+      );
+
+      burgerButton.setAttribute(
+        "aria-label",
+        "Menü öffnen"
+      );
+
+      if (burgerIcon) {
+        burgerIcon.textContent = "menu";
+      }
+    }
+
+    function restoreContentPanels() {
+      panelRecords.forEach(function (record) {
+        const placeholder = record.placeholder;
+
+        if (!placeholder.parentNode) return;
+
+        placeholder.parentNode.insertBefore(
+          record.panel,
+          placeholder.nextSibling
+        );
+
+        record.panel.hidden = true;
+      });
+    }
+
+    function openWizard(button) {
+      if (
+        !mobileBreakpoint.matches ||
+        !mobileDetail ||
+        !mobileDetailContent ||
+        !megaGrid
+      ) {
+        return;
+      }
+
+      /*
+       * Falls vorher ein anderer Bereich offen war,
+       * zuerst alle Panels zurücksetzen.
+       */
+      restoreContentPanels();
+
+      sectionButtons.forEach(function (sectionButton) {
+        sectionButton.setAttribute(
+          "aria-expanded",
+          "false"
+        );
+
+        sectionButton.classList.remove("is-active");
+      });
+
+      activeWizardTrigger = button;
+
+      button.setAttribute(
+        "aria-expanded",
+        "true"
+      );
+
+      button.classList.add("is-active");
+
+      const controlledIds = (
+        button.getAttribute("aria-controls") || ""
+      )
+        .split(/\s+/)
+        .filter(Boolean);
+
+      controlledIds.forEach(function (id) {
+        const panel = document.getElementById(id);
+
+        if (!panel) return;
+
+        mobileDetailContent.appendChild(panel);
+        panel.hidden = false;
+      });
+
+      /*
+       * Primary-Step für Maus, Tastatur und
+       * Screenreader deaktivieren.
+       */
+      megaGrid.inert = true;
+      megaGrid.setAttribute("aria-hidden", "true");
+
+      mobileDetail.hidden = false;
+
+      if (mobileBackButton) {
+        window.requestAnimationFrame(function () {
+          mobileBackButton.focus();
+        });
+      }
+    }
+
+    function closeWizard(returnFocus) {
+      if (!mobileDetail || !megaGrid) return;
+
+      const previousTrigger = activeWizardTrigger;
+
+      restoreContentPanels();
+
+      sectionButtons.forEach(function (button) {
+        button.setAttribute(
+          "aria-expanded",
+          "false"
+        );
+
+        button.classList.remove("is-active");
+      });
+
+      mobileDetail.hidden = true;
+
+      megaGrid.inert = false;
+      megaGrid.removeAttribute("aria-hidden");
+
+      activeWizardTrigger = null;
+
+      if (
+        returnFocus &&
+        previousTrigger &&
+        mobileBreakpoint.matches
+      ) {
+        window.requestAnimationFrame(function () {
+          previousTrigger.focus();
+        });
+      }
+    }
+
+    function moveSolutionsPanel() {
+      if (
+        !solutionsPanel ||
+        !solutionsItem ||
+        !megaMenuLayer
+      ) {
+        return;
+      }
+
+      if (mobileBreakpoint.matches) {
+        if (
+          solutionsPanel.parentNode !== solutionsItem
+        ) {
+          solutionsItem.appendChild(
+            solutionsPanel
+          );
+        }
+
+        return;
+      }
+
+      /*
+       * Beim Wechsel auf Desktop:
+       * Wizard vollständig zurücksetzen.
+       */
+      closeWizard(false);
+
+      if (
+        solutionsPlaceholder &&
+        solutionsPlaceholder.parentNode &&
+        solutionsPanel.parentNode !== megaMenuLayer
+      ) {
+        solutionsPlaceholder.parentNode.insertBefore(
+          solutionsPanel,
+          solutionsPlaceholder.nextSibling
+        );
+      }
+
+      closeMenu();
+    }
+
+    /*
+     * WICHTIG:
+     * Capture-Listener fängt den Klick mobil ab,
+     * bevor das bestehende Desktop-Mega-Menü-JS
+     * seine normale Spaltenlogik ausführt.
+     */
+    sectionButtons.forEach(function (button) {
+      button.addEventListener(
+        "click",
+        function (event) {
+          if (!mobileBreakpoint.matches) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+
+          openWizard(button);
+        },
+        true
+      );
+    });
+
+    if (mobileBackButton) {
+      mobileBackButton.addEventListener(
+        "click",
+        function () {
+          closeWizard(true);
+        }
+      );
+    }
+
+    burgerButton.addEventListener(
+      "click",
+      function () {
+        const isOpen =
+          burgerButton.getAttribute(
+            "aria-expanded"
+          ) === "true";
+
+        if (isOpen) {
+          closeMenu();
+        } else {
+          openMenu();
+        }
+      }
+    );
+
+    document.addEventListener(
+      "keydown",
+      function (event) {
+        if (
+          event.key !== "Escape" &&
+          event.key !== "Esc"
+        ) {
+          return;
+        }
+
+        /*
+         * Befinden wir uns in Step 2,
+         * führt Escape zunächst nur zurück
+         * zur Lösungenübersicht.
+         */
+        if (
+          mobileBreakpoint.matches &&
+          mobileDetail &&
+          !mobileDetail.hidden
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+
+          closeWizard(true);
+        }
+      },
+      true
+    );
+
+    mobileBreakpoint.addEventListener(
+      "change",
+      moveSolutionsPanel
+    );
+
+    moveSolutionsPanel();
+  });
+})();
+
+  /*
+   * Breadcrumbs – dynamisch aus der URL (Staging + Live)
+   * - Struktur aus location.pathname (kein body-Attribut nötig)
+   * - Zwischen-Link-Form aus der aktuellen URL abgeleitet:
+   *     .html-Seite  -> Zwischenpunkte als /pfad.html   (Live)
+   *     clean-URL    -> Zwischenpunkte als /pfad        (Staging)
+   * - echte URLs + Labels aus der Navigation geerntet (wo vorhanden)
+   * - Label nur aus dem Titel-Element (kein Copytext mehr)
+   * - Sprach-Vorbereitung: führendes /en/ wird übersprungen
+   * - Homepage: blendet sich aus, wenn nur "Start" übrig bliebe
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      var wrappers = Array.prototype.slice.call(
+        document.querySelectorAll(".breadcrumb-wrapper")
+      );
+      if (!wrappers.length) return;
+
+      /* ---- Konfiguration ---- */
+      var LABEL_OVERRIDES = {
+        // "e2e-produktionsanalyse": "E2E Produktionsanalyse"
+      };
+      var LANG_CODES = ["de", "en"];
+      var START_LABEL = { de: "Start", en: "Start" };
+      var GENERIC_LABELS = ["übersicht", "overview", "start", "home"];
+
+      var lang =
+        (document.documentElement.lang || "de").toLowerCase().indexOf("en") === 0
+          ? "en"
+          : "de";
+
+      var nav =
+        document.querySelector('[data-mega-nav="true"]') ||
+        document.querySelector(".nav_component");
+
+      var urlByPath = {};   // normalisierter Pfad -> echte href
+      var labelBySlug = {}; // Slug -> schönes Label
+
+      function cleanText(el) {
+        return (el.textContent || "").replace(/\s+/g, " ").trim();
+      }
+
+      // Nur den Titel auslesen, nicht den Copytext darunter
+      function labelFromEl(el) {
+        var specific = el.querySelector(
+          ".nav_menu-trigger-text, .mega_menu-link-text, .nav_dropdown-link-text"
+        );
+        return cleanText(specific || el);
+      }
+
+      function normalizePath(href) {
+        var path;
+        try {
+          path = new URL(href, location.origin).pathname;
+        } catch (e) {
+          return null;
+        }
+        path = decodeURIComponent(path).toLowerCase();
+        path = path.replace(/\/index\.html?$/, "/").replace(/\.html?$/, "");
+        if (path.length > 1) path = path.replace(/\/+$/, "");
+        return path || "/";
+      }
+
+      function lastSlug(path) {
+        var parts = path.split("/").filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : "";
+      }
+
+      if (nav) {
+        Array.prototype.forEach.call(
+          nav.querySelectorAll("[data-mega-trigger]"),
+          function (el) {
+            var slug = el.getAttribute("data-mega-trigger");
+            if (slug) labelBySlug[slug.toLowerCase()] = labelFromEl(el);
+          }
+        );
+        Array.prototype.forEach.call(
+          nav.querySelectorAll("[data-mega-section]"),
+          function (el) {
+            var slug = el.getAttribute("data-mega-section");
+            if (slug) labelBySlug[slug.toLowerCase()] = labelFromEl(el);
+          }
+        );
+        Array.prototype.forEach.call(
+          nav.querySelectorAll("a[href]"),
+          function (a) {
+            var raw = a.getAttribute("href");
+            if (!raw || raw.charAt(0) === "#") return;
+            var np = normalizePath(raw);
+            if (!np) return;
+            if (!(np in urlByPath)) urlByPath[np] = raw;
+
+            var slug = lastSlug(np);
+            var text = labelFromEl(a);
+            if (
+              slug &&
+              text &&
+              !(slug in labelBySlug) &&
+              GENERIC_LABELS.indexOf(text.toLowerCase()) === -1
+            ) {
+              labelBySlug[slug] = text;
+            }
+          }
+        );
+      }
+
+      function prettify(slug) {
+        return slug.replace(/[-_]+/g, " ").replace(/\b\w/g, function (c) {
+          return c.toUpperCase();
+        });
+      }
+
+      function labelFor(slug) {
+        if (LABEL_OVERRIDES[slug]) return LABEL_OVERRIDES[slug];
+        if (labelBySlug[slug]) return labelBySlug[slug];
+        return prettify(slug);
+      }
+
+      /* ---- Link-Form aus der aktuellen URL ableiten ---- */
+      var pathname = location.pathname;
+      var usesHtml = /\.html?$/i.test(pathname);
+      var usesTrailingSlash = !usesHtml && /\/$/.test(pathname);
+
+      function buildHref(cumulative) {
+        if (usesHtml) return cumulative + ".html";   // Live
+        if (usesTrailingSlash) return cumulative + "/";
+        return cumulative;                           // Staging (clean)
+      }
+
+      /* ---- Aktuellen Pfad zerlegen ---- */
+      var segments = decodeURIComponent(pathname).split("/").filter(Boolean);
+
+      if (segments.length) {
+        var last = segments[segments.length - 1].replace(/\.html?$/i, "");
+        if (last.toLowerCase() === "index") segments.pop();
+        else segments[segments.length - 1] = last;
+      }
+
+      var langPrefix = "";
+      if (
+        segments.length &&
+        LANG_CODES.indexOf(segments[0].toLowerCase()) !== -1
+      ) {
+        langPrefix = segments.shift().toLowerCase();
+      }
+
+      var homeHref = "/" + (langPrefix ? langPrefix + "/" : "");
+
+      /* ---- Krümel bauen ---- */
+      var crumbs = [{ label: START_LABEL[lang] || "Start", href: homeHref }];
+      var cumulative = langPrefix ? "/" + langPrefix : "";
+
+      segments.forEach(function (seg, i) {
+        cumulative += "/" + seg;
+        var isLast = i === segments.length - 1;
+        var href = null;
+        if (!isLast) {
+          // echte URL aus Nav bevorzugen, sonst aus aktueller URL-Form ableiten
+          href = urlByPath[cumulative.toLowerCase()] || buildHref(cumulative);
+        }
+        crumbs.push({ label: labelFor(seg.toLowerCase()), href: href });
+      });
+
+      if (crumbs.length <= 1) {
+        wrappers.forEach(function (w) {
+          w.style.display = "none";
+        });
+        return;
+      }
+
+      /* ---- DOM aufbauen (bestehende Elemente als Vorlage) ---- */
+      wrappers.forEach(function (wrapper) {
+        var linkTpl = wrapper.querySelector(".breadcrumb-link");
+        var sepTpl = null;
+        Array.prototype.forEach.call(wrapper.children, function (child) {
+          if (!sepTpl && !child.classList.contains("breadcrumb-link")) {
+            sepTpl = child;
+          }
+        });
+
+        var linkBase = linkTpl
+          ? linkTpl.cloneNode(true)
+          : (function () {
+              var a = document.createElement("a");
+              a.className = "breadcrumb-link";
+              return a;
+            })();
+        var sepClone = sepTpl ? sepTpl.cloneNode(true) : null;
+
+        wrapper.removeAttribute("aria-lable");
+        wrapper.setAttribute("aria-label", "breadcrumb");
+        wrapper.innerHTML = "";
+
+        crumbs.forEach(function (crumb, i) {
+          if (i > 0 && sepClone) wrapper.appendChild(sepClone.cloneNode(true));
+
+          var node = linkBase.cloneNode(true);
+          node.classList.remove("active");
+          node.removeAttribute("aria-current");
+          node.textContent = crumb.label;
+
+          if (i === crumbs.length - 1) {
+            node.classList.add("active");
+            node.setAttribute("aria-current", "page");
+            node.removeAttribute("href");
+          } else if (crumb.href) {
+            node.setAttribute("href", crumb.href);
+          }
+
+          wrapper.appendChild(node);
+        });
+      });
+    });
+  })();
