@@ -772,19 +772,24 @@ function onReady(fn){
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+    /* Gewollte Seitenabstände des Edge-Sliders – unabhängig von anderen
+       Containern, auf jeder Seite identisch. */
+    var SLIDER_SIDE_GUTTER = "5%"; // Abstand links & rechts ("5%" oder z.B. "64px")
+    var SLIDER_MAX_WIDTH = 0;      // 0 = kein Limit; sonst px (zentriert auf breiten Screens)
+
     function getReferenceContainer() {
-      return Array.from(
-        document.querySelectorAll(".udesly-container:not(.is-slider)")
-      )
-        .filter(function (container) {
-          const rect = container.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0;
-        })
-        .sort(function (a, b) {
-          return (
-            b.getBoundingClientRect().width - a.getBoundingClientRect().width
-          );
-        })[0];
+      var pageWidth = document.documentElement.clientWidth;
+      var g = /%\s*$/.test(SLIDER_SIDE_GUTTER)
+        ? pageWidth * (parseFloat(SLIDER_SIDE_GUTTER) / 100)
+        : parseFloat(SLIDER_SIDE_GUTTER) || 0;
+
+      var width = Math.max(0, pageWidth - 2 * g);
+      if (SLIDER_MAX_WIDTH && width > SLIDER_MAX_WIDTH) width = SLIDER_MAX_WIDTH;
+
+      var left = Math.round((pageWidth - width) / 2);
+      var rect = { left: left, right: left + width, width: width,
+                   top: 0, bottom: 0, height: 1 };
+      return { getBoundingClientRect: function () { return rect; } };
     }
 
     document.querySelectorAll(".std-slider").forEach(function (slider) {
