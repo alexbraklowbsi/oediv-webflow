@@ -362,3 +362,374 @@
       margin-top: 0;
     }
   }
+
+/* Anchor Sub-Nav – Mobile Layout (Chevron-Styling kommt aus Webflow) */
+  @media (max-width: 991px) {
+    /* Row umbrechen: Trigger-Zeile oben, Panel darunter */
+    .anchor-nav-wrapper .anchor-nav-row {
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    /* Trigger (Sitename) über volle Breite */
+    .anchor-nav-wrapper .anchor-nav-row > .anchor-nav-link.sitename,
+    .anchor-nav-wrapper .anchor-nav-row > [data-anchor-toggle] {
+      flex: 1 1 100%;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    /* Panel = volle Breite, vertikal (Höhe steuert JS) */
+    .anchor-nav-wrapper .anchor-nav-link-collection-right {
+      flex: 0 0 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+/* base-worthy bei Merge: */
+  .ig-innum { fill: var(--bg); font-weight: 700; font-size: 11px; }
+  .ig-key { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem 1.6rem;
+            margin-bottom: 1.4rem; }
+  .ig-key__row { display: flex; align-items: center; gap: .5rem; font-size: .74rem;
+                 color: var(--muted); }
+  .ig-key__solid { width: 12px; height: 12px; border-radius: 50%; background: var(--fg); flex: none; }
+  .ig-key__dash { width: 20px; border-top: 2px dotted var(--faint); flex: none; }
+
+  /* Wheel-Layout */
+  .ig-wheel { display: grid; gap: clamp(1.25rem, 3.5cqw, 2.25rem); }
+  .ig-wheel__stage { position: relative; width: 100%; max-width: 480px; margin: 0 auto;
+                     padding: 1.4rem 2.2rem; }
+  .ig-wheel__stage svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+  .ig-wheel__center { position: absolute; left: 50%; top: 50%;
+                      transform: translate(-50%, -44%); display: grid; gap: .02rem;
+                      text-align: center; pointer-events: none; }
+  .ig-center-word { font-size: clamp(.72rem, .58rem + .6cqw, .9rem); font-weight: 700;
+                    letter-spacing: .09em; text-transform: uppercase; color: var(--fg); }
+
+  .ig-wheel__ring { position: absolute; inset: 0; pointer-events: none; }
+  .igw-rl { position: absolute; font-size: .66rem; letter-spacing: .14em;
+            text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .igw-rl--top    { top: 0; left: 50%; transform: translateX(-50%); }
+  .igw-rl--bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
+  .igw-rl--left   { left: .1rem; top: 50%; writing-mode: vertical-rl;
+                    transform: translateY(-50%) rotate(180deg); }
+  .igw-rl--right  { right: .1rem; top: 50%; writing-mode: vertical-rl;
+                    transform: translateY(-50%); }
+
+  /* Legende */
+  .ig-wheel__grid { display: grid; grid-template-columns: repeat(3, 1fr);
+                    gap: clamp(1rem, 3cqw, 2.25rem); }
+  .igw-seg__head { display: flex; align-items: flex-start; gap: .6rem; margin-bottom: .7rem; }
+  .igw-badge { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--fg);
+               color: var(--bg); display: grid; place-items: center; font-size: .72rem;
+               font-weight: 700; }
+
+  /* Vorhandene Webflow-Textklassen nutzen, aber Theme-Farbe erzwingen,
+     damit data-theme="dark" (invert) auch beim Text greift */
+  .ig .igw-seg__head .headline { margin: 0; color: var(--fg); }
+  .ig .igw-seg .list-std { margin: 0; }
+  .ig .igw-seg .list-item-std { color: var(--fg); }
+
+/* Zweisprachigkeit: nur die abweichende Textschicht wird verdoppelt.
+     Sichtbarkeit steuert das lang-Attribut am <html> (DE/EN-Seiten). */
+  .ig [data-lang] { display: none; }
+  html[lang^="de"] .ig [data-lang="de"] { display: revert; }
+  html[lang^="en"] .ig [data-lang="en"] { display: revert; }
+
+.sun-graphic-wrapper.sun-ready {
+  --sun-top: 96px;
+  --sun-size: min(220px, 48vw, 30svh);
+
+  position: relative;
+  display: block;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.sun-ready .sun-stage {
+  position: relative;
+  width: 100%;
+  height: clamp(640px, 52vw, 920px);
+}
+
+.sun-ready .sun-center-wrapper {
+  position: absolute;
+  z-index: 2;
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: 22%;
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+.sun-ready .sun-tag-track {
+  display: contents;
+}
+
+.sun-ready .sun-tag {
+  position: absolute;
+  z-index: 2;
+  inset: auto;
+  width: 23%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+  text-align: center;
+  transform:
+    translate(-50%, -50%)
+    translate(var(--sun-x, 0px), var(--sun-y, 0px));
+}
+
+.sun-ready .sun-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.sun-ready .sun-lines line {
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.35;
+}
+
+/* ============================================================
+   TABLET 768–991 – statischer Zwei-Spalter: Sonne links, Tags rechts
+   ============================================================ */
+@media (min-width: 768px) and (max-width: 991px) {
+  .sun-ready .sun-stage {
+    position: relative;
+    height: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 38%) minmax(0, 62%);
+    align-items: center;
+    gap: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .sun-ready .sun-lines { display: none; }
+
+  .sun-ready .sun-center-wrapper {
+    position: relative;
+    inset: auto;
+    left: auto;
+    top: auto;
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto;
+    transform: none;
+    opacity: 1;
+  }
+
+  .sun-ready .sun-tag-track {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1rem, 2.5vw, 1.75rem);
+    position: relative;
+    inset: auto;
+    top: auto;
+    transform: none;
+    overflow: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .sun-ready .sun-tag {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100%;
+    max-width: none;
+    transform: none;
+    text-align: left;
+  }
+}
+
+/* ============================================================
+   MOBILE ≤767 – Sticky Scroll-Reveal
+   ============================================================ */
+@media (max-width: 767px) {
+  .sun-scroll-section,
+  .sun-scroll-container {
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  .sun-graphic-wrapper.sun-ready {
+    height: var(--sun-scroll-height, 100svh);
+    margin-bottom: 0;
+  }
+
+  .sun-ready .sun-stage {
+    position: sticky;
+    top: 0;
+    height: min(100svh, var(--sun-scroll-height, 100svh));
+  }
+
+  .sun-ready .sun-center-wrapper {
+    top: var(--sun-top);
+    width: var(--sun-size);
+    height: var(--sun-size);
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+    transform:
+      translateX(-50%)
+      translate3d(0, var(--sun-follow, 0px), 0);
+    opacity: var(--sun-opacity, 1);
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .sun-ready .sun-lines {
+    display: none;
+  }
+
+  .sun-ready .sun-tag-track {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(var(--sun-top) + var(--sun-size) + 16px);
+    bottom: 0;
+    overflow: hidden;
+
+    /* Follow als Transform (GPU) statt top-Reflow -> kein Flackern */
+    transform: translate3d(0, var(--sun-follow, 0px), 0);
+    will-change: transform;
+
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+  }
+
+  .sun-ready .sun-tag {
+    left: 50% !important;
+    top: 0 !important;
+    width: min(340px, 86%);
+    transform:
+      translateX(-50%)
+      translateY(var(--sun-tag-y, 24px));
+  }
+
+  .sun-ready .sun-tag:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 7px);
+    width: 1px;
+    height: 20px;
+    background: currentColor;
+    opacity: 0.25;
+    pointer-events: none;
+  }
+}
+
+/* Mobile + reduzierte Bewegung: einfacher Stapel */
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .sun-graphic-wrapper.sun-ready {
+    height: auto;
+    padding-bottom: 60px;
+  }
+
+  .sun-ready .sun-stage {
+    position: relative;
+    top: auto;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+  }
+
+  .sun-ready .sun-center-wrapper {
+    position: relative;
+    inset: auto;
+    transform: none;
+    opacity: 1;
+    flex-shrink: 0;
+  }
+
+  .sun-ready .sun-tag-track {
+    position: relative;
+    inset: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    width: 100%;
+    overflow: visible;
+    transform: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .sun-ready .sun-tag {
+    position: relative;
+    inset: auto !important;
+    transform: none;
+  }
+}
+
+/* Modal – charmantes Ein-/Ausblenden.
+     Modals sind im Webflow default display:none, sichtbar display:flex. */
+  .modal-wrapper {
+    opacity: 0;
+    transition: opacity 240ms ease;
+    will-change: opacity;
+  }
+  .modal-wrapper .modal-inner-wrapper {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+    transition: opacity 260ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .modal-wrapper.is-open { opacity: 1; }
+  .modal-wrapper.is-open .modal-inner-wrapper {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  /* Body-Scroll sperren, solange ein Modal offen ist */
+  html.modal-open, html.modal-open body { overflow: hidden; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .modal-wrapper,
+    .modal-wrapper .modal-inner-wrapper {
+      transition: none;
+      transform: none;
+    }
+  }
+
+/* Filter-Dropdown: Pfeil dreht beim Öffnen */
+  .article-filter-dropdown-toggle .w-icon-dropdown-toggle {
+    transition: transform 220ms ease;
+  }
+  .article-filter-dropdown-toggle[aria-expanded="true"] .w-icon-dropdown-toggle {
+    transform: rotate(180deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .article-filter-dropdown-toggle .w-icon-dropdown-toggle { transition: none; }
+  }

@@ -533,7 +533,6 @@ function onReady(fn){
 
     currentLink.setAttribute('role', 'button');
     currentLink.setAttribute('aria-current', 'page');
-    currentLink.setAttribute('aria-haspopup', 'true');
     currentLink.setAttribute('aria-expanded', 'false');
     currentLink.setAttribute('aria-controls', 'language-alternate-link');
 
@@ -586,7 +585,7 @@ function onReady(fn){
     });
 
     currentLink.addEventListener('keydown', function (event) {
-      if (event.key !== ' ' && event.key !== 'ArrowDown') {
+      if (event.key !== ' ' && event.key !== 'Enter' && event.key !== 'ArrowDown') {
         return;
       }
 
@@ -1732,13 +1731,51 @@ function onReady(fn){
       requestAnimationFrame(updateParallax);
     }
 
-    updateParallax();
+    var parallaxMobile = window.matchMedia('(max-width: 767px)');
 
-    window.addEventListener('scroll', requestUpdate, {
-      passive: true,
+    function applyParallaxMode() {
+      if (parallaxMobile.matches) {
+        items.forEach(function (item) {
+          item.wrapper.style.overflow = '';
+          item.image.style.position = '';
+          item.image.style.top = '';
+          item.image.style.left = '';
+          item.image.style.width = '';
+          item.image.style.height = '';
+          item.image.style.maxWidth = '';
+          item.image.style.objectFit = '';
+          item.image.style.willChange = '';
+          item.image.style.transform = '';
+        });
+      } else {
+        items.forEach(function (item) {
+          item.wrapper.style.overflow = 'hidden';
+          item.image.style.position = 'absolute';
+          item.image.style.top = -(PARALLAX_EXTRA / 2) * 100 + '%';
+          item.image.style.left = '0';
+          item.image.style.width = '100%';
+          item.image.style.height = (1 + PARALLAX_EXTRA) * 100 + '%';
+          item.image.style.maxWidth = 'none';
+          item.image.style.objectFit = 'cover';
+          item.image.style.willChange = 'transform';
+        });
+        updateParallax();
+      }
+    }
+
+    function requestUpdateGuarded() {
+      if (parallaxMobile.matches) return;
+      requestUpdate();
+    }
+
+    parallaxMobile.addEventListener('change', applyParallaxMode);
+    window.addEventListener('scroll', requestUpdateGuarded, { passive: true });
+    window.addEventListener('resize', function () {
+      applyParallaxMode();
+      requestUpdateGuarded();
     });
 
-    window.addEventListener('resize', requestUpdate);
+    applyParallaxMode();
   });
 })();
 
@@ -3072,6 +3109,1051 @@ function onReady(fn){
           }
 
           wrapper.appendChild(node);
+        });
+      });
+    });
+  })();
+
+  /*
+   * Anchor Sub-Nav – Mobile Pulldown + Menü-Koordination
+   * - Pulldown ab <=991px
+   * - Anchor-Nav wird ausgeblendet, solange Burger, ein Top-Level-Menü
+   *   (Mega-Menü „Lösungen" etc.) ODER der Sprachumschalter geöffnet ist
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      var MOBILE = "(max-width: 991px)";
+      var mq = window.matchMedia(MOBILE);
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      function force(el, prop, val) { el.style.setProperty(prop, val, "important"); }
+      function clear(el, prop) { el.style.removeProperty(prop); }
+
+      /* ---------- Mobile Pulldown ---------- */
+      document.querySelectorAll(".anchor-nav-wrapper").forEach(function (wrapper) {
+        var row = wrapper.querySelector(".anchor-nav-row");
+        var panel = wrapper.querySelector(".anchor-nav-link-collection-right");
+        if (!row || !panel) return;
+
+        var trigger =
+          wrapper.querySelector("[data-anchor-toggle]") ||
+          row.querySelector(".anchor-nav-link.sitename") ||
+          row.querySelector(".anchor-nav-link");
+        if (!trigger) return;
+
+        var chevron = wrapper.querySelector("[data-anchor-chevron]");
+        var open = false;
+
+        function rotate() {
+          if (!chevron) return;
+          force(chevron, "transform", open ? "rotate(180deg)" : "rotate(0deg)");
+        }
+
+        function openPanel() {
+          open = true;
+          trigger.setAttribute("aria-expanded", "true");
+          panel.inert = false;
+          rotate();
+          if (reduced.matches) { force(panel, "height", "auto"); return; }
+          force(panel, "height", panel.scrollHeight + "px");
+          var onEnd = function (e) {
+            if (e.propertyName !== "height") return;
+            panel.removeEventListener("transitionend", onEnd);
+            if (open) force(panel, "height", "auto");
+          };
+          panel.addEventListener("transitionend", onEnd);
+        }
+
+        function closePanel(instant) {
+          open = false;
+          trigger.setAttribute("aria-expanded", "false");
+          panel.inert = true;
+          rotate();
+          if (reduced.matches || instant) { force(panel, "height", "0px"); return; }
+          force(panel, "height", panel.getBoundingClientRect().height + "px");
+          panel.getBoundingClientRect(); // Reflow
+          requestAnimationFrame(function () { force(panel, "height", "0px"); });
+        }
+
+        function applyMode() {
+          if (mq.matches) {
+            trigger.setAttribute("role", "button");
+            trigger.setAttribute("tabindex", "0");
+            trigger.setAttribute("aria-expanded", String(open));
+            trigger.style.cursor = "pointer";
+            force(panel, "overflow", "hidden");
+            if (!reduced.matches) {
+              panel.style.transition = "height 250ms ease";
+              if (chevron) chevron.style.transition = "transform 250ms ease";
+            }
+            panel.inert = !open;
+            if (!open) force(panel, "height", "0px");
+            rotate();
+          } else {
+            clear(panel, "height");
+            clear(panel, "overflow");
+            panel.style.transition = "";
+            panel.inert = false;
+            open = false;
+            trigger.removeAttribute("role");
+            trigger.removeAttribute("tabindex");
+            trigger.setAttribute("aria-expanded", "false");
+            trigger.style.cursor = "";
+            if (chevron) { clear(chevron, "transform"); chevron.style.transition = ""; }
+          }
+        }
+
+        function toggle() {
+          if (!mq.matches) return;
+          if (open) closePanel(); else openPanel();
+        }
+
+        trigger.addEventListener("click", function (e) {
+          if (!mq.matches) return;
+          e.preventDefault();
+          toggle();
+        });
+        trigger.addEventListener("keydown", function (e) {
+          if (!mq.matches) return;
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+        });
+
+        panel.addEventListener("click", function (e) {
+          if (mq.matches && e.target.closest("a")) closePanel(true);
+        });
+        document.addEventListener("click", function (e) {
+          if (!mq.matches || !open) return;
+          if (!wrapper.contains(e.target)) closePanel();
+        });
+
+        mq.addEventListener("change", applyMode);
+        applyMode();
+      });
+
+      /* ---------- Anchor-Nav bei offenem Menü ausblenden ---------- */
+      var wrappers = document.querySelectorAll(".anchor-nav-wrapper");
+      if (!wrappers.length) return;
+
+      var expandTriggers = [];
+      var burger = document.querySelector(".burger-btn");
+      if (burger) expandTriggers.push(burger);
+      Array.prototype.push.apply(
+        expandTriggers,
+        Array.prototype.slice.call(
+          document.querySelectorAll(".nav_menu-trigger[data-mega-trigger]")
+        )
+      );
+
+      var langSwitcher = document.querySelector(".nav_language-switcher");
+
+      function anyMenuOpen() {
+        var expanded = expandTriggers.some(function (t) {
+          return t.getAttribute("aria-expanded") === "true";
+        });
+        var langOpen = langSwitcher && langSwitcher.classList.contains("is-open");
+        return expanded || langOpen;
+      }
+
+      function sync() {
+        var openNow = anyMenuOpen();
+        wrappers.forEach(function (w) { w.style.display = openNow ? "none" : ""; });
+      }
+
+      var obs = new MutationObserver(sync);
+      expandTriggers.forEach(function (t) {
+        obs.observe(t, { attributes: true, attributeFilter: ["aria-expanded"] });
+      });
+      if (langSwitcher) {
+        obs.observe(langSwitcher, { attributes: true, attributeFilter: ["class"] });
+      }
+      sync();
+    });
+  })();
+
+  /*
+   * Anchor Sub-Nav – Scroll-Direction Sticky (reflow-fest)
+   * - Position wird LIVE über den Platzhalter gemessen -> unempfindlich
+   *   gegen nachladende Lazy-Bilder / Layout-Verschiebungen
+   * - Richtungs-Totzone + Anchor-Sprung-Sperre gegen Flackern
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      var DIR_THRESHOLD = 6;   // px, bevor ein Richtungswechsel zählt
+      var JUMP_LOCK = 500;     // ms Sperre nach Anchor-Sprung
+
+      var wrapper = document.querySelector(".anchor-nav-wrapper");
+      if (!wrapper) return;
+
+      var header = document.querySelector(".site_header");
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      var spacer = document.createElement("div");
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.style.height = "0px";
+      wrapper.parentNode.insertBefore(spacer, wrapper);
+
+      var pinned = false;
+      var currentTop = null;
+      var direction = "down";
+      var anchorRef = window.pageYOffset;
+      var navH = 0;
+      var lockUntil = 0;
+
+      function headerHeight() {
+        return header ? Math.round(header.getBoundingClientRect().height) : 0;
+      }
+      function originalTop() {
+        return spacer.getBoundingClientRect().top + window.pageYOffset;
+      }
+
+      function setTop(top) {
+        if (top === currentTop) return;
+        currentTop = top;
+        wrapper.style.top = top + "px";
+      }
+
+      function pinOn(top) {
+        navH = wrapper.getBoundingClientRect().height;
+        spacer.style.height = navH + "px";
+        wrapper.style.position = "fixed";
+        wrapper.style.left = "0";
+        wrapper.style.right = "0";
+        if (!reduced.matches) wrapper.style.transition = "top 250ms ease";
+        setTop(top);
+      }
+
+      function pinOff() {
+        wrapper.style.position = "";
+        wrapper.style.left = "";
+        wrapper.style.right = "";
+        wrapper.style.top = "";
+        wrapper.style.transition = "";
+        currentTop = null;
+        spacer.style.height = "0px";
+      }
+
+      function updateDirection(y) {
+        if (y > anchorRef + DIR_THRESHOLD) { direction = "down"; anchorRef = y; }
+        else if (y < anchorRef - DIR_THRESHOLD) { direction = "up"; anchorRef = y; }
+        else if (
+          (direction === "down" && y > anchorRef) ||
+          (direction === "up" && y < anchorRef)
+        ) { anchorRef = y; }
+      }
+
+      function evaluate() {
+        var y = window.pageYOffset;
+        var locked = Date.now() < lockUntil;
+        if (!locked) updateDirection(y);
+
+        var hH = headerHeight();
+        var oTop = originalTop();
+        var enterAt = oTop;
+        var exitAt = oTop - hH;
+
+        if (pinned) {
+          if (y <= exitAt) { pinned = false; pinOff(); }
+          else if (!locked) { setTop(direction === "down" ? 0 : hH); }
+        } else if (y >= enterAt) {
+          pinned = true;
+          pinOn(direction === "down" ? 0 : hH);
+        }
+      }
+
+      var ticking = false;
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(function () { ticking = false; evaluate(); });
+      }
+
+      function lockForJump() { lockUntil = Date.now() + JUMP_LOCK; }
+      document.addEventListener("click", function (e) {
+        if (e.target.closest('a[href*="#"]')) lockForJump();
+      });
+      window.addEventListener("hashchange", lockForJump);
+
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", function () {
+        if (pinned) { pinned = false; pinOff(); }
+        anchorRef = window.pageYOffset;
+        evaluate();
+      });
+      window.addEventListener("load", evaluate);
+
+      evaluate();
+    });
+  })();
+
+(() => {
+  function init() {
+    const sticky  = matchMedia('(max-width: 767px)');
+    const tablet  = matchMedia('(min-width: 768px) and (max-width: 991px)');
+    const pointer = matchMedia('(hover: hover) and (pointer: fine)');
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
+    const RADIUS_X = 0.92;
+    const RADIUS_Y = 0.80;
+    const START_ANGLE_DEG = -90;
+    const MAX_MOVE = 12;
+    const TAG_GAP = 32;
+    const START_OFFSET = 24;
+    const END_GAP = 60;
+
+    const clamp = value => Math.max(0, Math.min(1, value));
+    const smooth = value => {
+      const t = clamp(value);
+      return t * t * (3 - 2 * t);
+    };
+
+    const items = [];
+    let frame = 0;
+    let needsLayout = true;
+    let lastTime = 0;
+
+    document.querySelectorAll('.sun-graphic-wrapper').forEach(root => {
+      if (root.classList.contains('sun-ready')) return;
+
+      const center = root.querySelector('.sun-center-wrapper');
+      const tags = [...root.querySelectorAll('.sun-tag')];
+
+      if (!center || !tags.length) return;
+
+      const main = tags.find(tag =>
+        tag.getAttribute('sun-main-tag') === 'true'
+      );
+
+      if (main) {
+        tags.splice(tags.indexOf(main), 1);
+        tags.unshift(main);
+      }
+
+      root.closest('section')?.classList.add('sun-scroll-section');
+      root.closest('.udesly-container')?.classList.add('sun-scroll-container');
+
+      const stage = document.createElement('div');
+      stage.className = 'sun-stage';
+
+      const track = document.createElement('div');
+      track.className = 'sun-tag-track';
+
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.classList.add('sun-lines');
+      svg.setAttribute('aria-hidden', 'true');
+
+      const lines = tags.map(() => {
+        const line = document.createElementNS(ns, 'line');
+        svg.append(line);
+        return line;
+      });
+
+      track.append(...tags);
+      stage.append(svg, center, track);
+      root.append(stage);
+      root.classList.add('sun-ready');
+
+      const item = {
+        root,
+        stage,
+        center,
+        track,
+        tags,
+        svg,
+        lines,
+        offsets: tags.map(() => ({ x: 0, y: 0 })),
+        mouse: null,
+        metrics: null
+      };
+
+      root.addEventListener('pointermove', event => {
+        if (sticky.matches || tablet.matches || !pointer.matches || reduced.matches) return;
+
+        item.mouse = { x: event.clientX, y: event.clientY };
+        schedule();
+      }, { passive: true });
+
+      const resetPointer = () => {
+        item.mouse = null;
+        schedule();
+      };
+
+      root.addEventListener('pointerleave', resetPointer);
+      root.addEventListener('pointercancel', resetPointer);
+
+      items.push(item);
+    });
+
+    if (!items.length) return;
+
+    function positionDesktop(item) {
+      const rect = item.stage.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (!w || !h) return;
+
+      const cx = w / 2;
+      const cy = h / 2;
+      const n = item.tags.length;
+      const rx = w / 2 * RADIUS_X;
+      const ry = h / 2 * RADIUS_Y;
+      const start = START_ANGLE_DEG * Math.PI / 180;
+
+      item.tags.forEach((tag, index) => {
+        const angle = start + index * (Math.PI * 2 / n);
+        tag.style.left = `${cx + Math.cos(angle) * rx}px`;
+        tag.style.top = `${cy + Math.sin(angle) * ry}px`;
+      });
+    }
+
+    function clearTagInline(item) {
+      item.tags.forEach(tag => {
+        tag.style.removeProperty('left');
+        tag.style.removeProperty('top');
+        tag.style.removeProperty('--sun-x');
+        tag.style.removeProperty('--sun-y');
+        tag.style.removeProperty('--sun-tag-y');
+      });
+    }
+
+    function measure() {
+      items.forEach(item => {
+        item.stage.style.setProperty('--sun-follow', '0px');
+
+        const isSticky = sticky.matches && !reduced.matches;
+
+        if (!isSticky) {
+          item.metrics = null;
+          if (!sticky.matches && !tablet.matches) {
+            positionDesktop(item);
+          } else {
+            clearTagInline(item);
+          }
+          return;
+        }
+
+        const laneTop = parseFloat(
+          getComputedStyle(item.track).top
+        ) || 0;
+
+        let total = 0;
+
+        const positions = item.tags.map(tag => {
+          const position = total;
+          total += tag.offsetHeight + TAG_GAP;
+          return position;
+        });
+
+        total -= TAG_GAP;
+
+        const lastIndex = item.tags.length - 1;
+        const lastHeight = item.tags[lastIndex].offsetHeight;
+
+        const height = laneTop + START_OFFSET + total + END_GAP;
+
+        item.root.style.setProperty(
+          '--sun-scroll-height',
+          `${height}px`
+        );
+
+        const viewport = item.stage.getBoundingClientRect().height;
+        const release = Math.max(0, height - viewport);
+
+        const fadeStart = positions[lastIndex];
+        const finish = START_OFFSET + total;
+        const fadeLength = START_OFFSET + lastHeight;
+
+        item.metrics = {
+          viewport,
+          positions,
+          release,
+          fadeStart,
+          finish,
+          fadeLength
+        };
+      });
+    }
+
+    function renderMobile(item) {
+      const m = item.metrics;
+      if (!m || !m.viewport) return;
+
+      const top = item.root.getBoundingClientRect().top;
+      const scroll = Math.max(0, -top);
+
+      const enter = smooth(
+        (m.viewport * 0.35 - top) / (m.viewport * 0.35)
+      );
+
+      const exit = 1 - smooth(
+        (scroll - m.fadeStart) / m.fadeLength
+      );
+
+      const follow = Math.round(
+        Math.max(0, Math.min(scroll, m.finish) - m.release)
+      );
+
+      const movement = Math.min(scroll, m.release);
+
+      item.stage.style.setProperty('--sun-follow', `${follow}px`);
+      item.stage.style.setProperty('--sun-opacity', enter * exit);
+
+      item.tags.forEach((tag, index) => {
+        const y =
+          START_OFFSET +
+          m.positions[index] -
+          movement -
+          follow;
+
+        tag.style.setProperty('--sun-tag-y', `${y}px`);
+      });
+    }
+
+    function drawLines(item) {
+      const bounds = item.stage.getBoundingClientRect();
+      const sun = item.center.getBoundingClientRect();
+
+      if (!sun.width || !sun.height) return;
+
+      item.svg.setAttribute(
+        'viewBox',
+        `0 0 ${bounds.width} ${bounds.height}`
+      );
+
+      const cx = sun.left + sun.width / 2 - bounds.left;
+      const cy = sun.top + sun.height / 2 - bounds.top;
+
+      const rects = item.tags.map(tag => tag.getBoundingClientRect());
+
+      rects.forEach((rect, index) => {
+        const dx = rect.left + rect.width / 2 - bounds.left - cx;
+        const dy = rect.top + rect.height / 2 - bounds.top - cy;
+
+        if (!dx && !dy) return;
+
+        const start = 1 / Math.hypot(
+          dx / (sun.width / 2),
+          dy / (sun.height / 2)
+        );
+
+        const end = Math.min(
+          dx ? rect.width / 2 / Math.abs(dx) : Infinity,
+          dy ? rect.height / 2 / Math.abs(dy) : Infinity
+        );
+
+        const line = item.lines[index];
+
+        line.setAttribute('x1', cx + dx * start);
+        line.setAttribute('y1', cy + dy * start);
+        line.setAttribute('x2', cx + dx * (1 - end));
+        line.setAttribute('y2', cy + dy * (1 - end));
+      });
+    }
+
+    function renderDesktop(item, ease) {
+      const active =
+        pointer.matches &&
+        !reduced.matches &&
+        item.mouse;
+
+      const rects = item.tags.map(tag => tag.getBoundingClientRect());
+
+      let moving = false;
+
+      item.tags.forEach((tag, index) => {
+        const offset = item.offsets[index];
+        const rect = rects[index];
+
+        let x = 0;
+        let y = 0;
+
+        if (active) {
+          const cx = rect.left + rect.width / 2 - offset.x;
+          const cy = rect.top + rect.height / 2 - offset.y;
+          const dx = item.mouse.x - cx;
+          const dy = item.mouse.y - cy;
+
+          const scale = MAX_MOVE / Math.max(320, Math.hypot(dx, dy));
+
+          x = dx * scale;
+          y = dy * scale;
+        }
+
+        if (reduced.matches) {
+          offset.x = x;
+          offset.y = y;
+        } else {
+          offset.x += (x - offset.x) * ease;
+          offset.y += (y - offset.y) * ease;
+        }
+
+        if (Math.hypot(x - offset.x, y - offset.y) > 0.03) {
+          moving = true;
+        } else {
+          offset.x = x;
+          offset.y = y;
+        }
+
+        tag.style.setProperty('--sun-x', `${offset.x}px`);
+        tag.style.setProperty('--sun-y', `${offset.y}px`);
+      });
+
+      drawLines(item);
+      return moving;
+    }
+
+    function tick(time) {
+      frame = 0;
+
+      const dt = lastTime ? Math.min(time - lastTime, 64) : 16;
+      const ease = 1 - Math.exp(-dt / 110);
+      lastTime = time;
+
+      if (needsLayout) {
+        needsLayout = false;
+        measure();
+      }
+
+      let moving = false;
+
+      items.forEach(item => {
+        if (sticky.matches) {
+          item.mouse = null;
+          if (!reduced.matches) {
+            renderMobile(item);
+          }
+        } else if (tablet.matches) {
+          /* statischer Zwei-Spalter */
+        } else {
+          moving = renderDesktop(item, ease) || moving;
+        }
+      });
+
+      if (moving) schedule();
+      else lastTime = 0;
+    }
+
+    function schedule() {
+      if (!frame) {
+        frame = requestAnimationFrame(tick);
+      }
+    }
+
+    function layout() {
+      needsLayout = true;
+      schedule();
+    }
+
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', layout, { passive: true });
+
+    [sticky, tablet, pointer, reduced].forEach(query => {
+      query.addEventListener('change', layout);
+    });
+
+    const observer = new ResizeObserver(layout);
+
+    items.forEach(({ stage, center, tags }) => {
+      observer.observe(stage);
+      observer.observe(center);
+      tags.forEach(tag => observer.observe(tag));
+    });
+
+    if (document.fonts) {
+      document.fonts.ready.then(layout);
+    }
+
+    layout();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();
+
+  /*
+   * Generisches Modal-System
+   * - Öffnen:  Element mit [modal-action-trigger="NAME"]
+   * - Modal:   Element mit [modal-action="is-NAME"] oder [modal-action="NAME"]
+   * - Schließen: [modal-action="close"], Klick außerhalb .modal-inner-wrapper, Escape
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      var OPEN_CLASS = "is-open";
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      function normalize(value) {
+        return (value || "").trim().replace(/^is-/, "").toLowerCase();
+      }
+
+      var modals = {};
+      Array.prototype.forEach.call(
+        document.querySelectorAll("[modal-action]"),
+        function (el) {
+          var raw = el.getAttribute("modal-action");
+          if (!raw || raw.toLowerCase() === "close") return;
+          if (!el.classList.contains("modal-wrapper")) return;
+          modals[normalize(raw)] = el;
+        }
+      );
+
+      var openModal = null;
+      var lastTrigger = null;
+
+      function open(modal, trigger) {
+        if (!modal || modal === openModal) return;
+        if (openModal) hide(openModal, true);
+
+        openModal = modal;
+        lastTrigger = trigger || null;
+
+        modal.style.display = "flex";
+        modal.setAttribute("aria-hidden", "false");
+        document.documentElement.classList.add("modal-open");
+
+        modal.getBoundingClientRect();
+        requestAnimationFrame(function () {
+          modal.classList.add(OPEN_CLASS);
+        });
+
+        var focusable = modal.querySelector(
+          'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable) {
+          window.requestAnimationFrame(function () { focusable.focus(); });
+        }
+      }
+
+      function hide(modal, instant) {
+        if (!modal) return;
+        modal.classList.remove(OPEN_CLASS);
+        modal.setAttribute("aria-hidden", "true");
+
+        var finish = function () {
+          modal.style.display = "none";
+        };
+
+        if (instant || reduced.matches) {
+          finish();
+        } else {
+          var done = false;
+          var onEnd = function (e) {
+            if (e && e.target !== modal) return;
+            if (done) return;
+            done = true;
+            modal.removeEventListener("transitionend", onEnd);
+            finish();
+          };
+          modal.addEventListener("transitionend", onEnd);
+          window.setTimeout(function () { onEnd(); }, 400);
+        }
+
+        if (modal === openModal) {
+          openModal = null;
+          document.documentElement.classList.remove("modal-open");
+          if (lastTrigger && typeof lastTrigger.focus === "function") {
+            lastTrigger.focus();
+          }
+          lastTrigger = null;
+        }
+      }
+
+      function close() {
+        if (openModal) hide(openModal, false);
+      }
+
+      document.addEventListener("click", function (event) {
+        var trigger = event.target.closest("[modal-action-trigger]");
+        if (!trigger) return;
+
+        var name = normalize(trigger.getAttribute("modal-action-trigger"));
+        var modal = modals[name];
+        if (!modal) return;
+
+        event.preventDefault();
+        open(modal, trigger);
+      });
+
+      document.addEventListener("click", function (event) {
+        var closer = event.target.closest('[modal-action="close"]');
+        if (closer && openModal && openModal.contains(closer)) {
+          event.preventDefault();
+          close();
+          return;
+        }
+
+        if (openModal && event.target === openModal) {
+          close();
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if ((event.key === "Escape" || event.key === "Esc") && openModal) {
+          event.preventDefault();
+          close();
+        }
+      });
+    });
+  })();
+
+  /*
+   * News-Filter/Sort – attribut-gesteuert & erweiterbar
+   * Dropdown-Link-Attribute:
+   *   data-filter-action="sort"   data-filter-field="date" data-filter-dir="desc|asc"
+   *   data-filter-action="filter" data-filter-field="<feld>" data-filter-value="<wert>"
+   *   data-filter-action="reset"
+   * Ohne Attribute: Text-Fallback (neuste/älteste -> Datums-Sortierung).
+   */
+  (function () {
+    onReady(function () {
+      "use strict";
+
+      var FILTER_INCLUDES_HIGHLIGHT = false;
+
+      var FIELDS = {
+        date: function (c) {
+          var t = c.querySelector("time[datetime-newsteaser]");
+          var ms = Date.parse(t ? t.getAttribute("datetime-newsteaser") : "");
+          return isNaN(ms) ? 0 : ms;
+        },
+        "author-id": function (c) {
+          return (c.getAttribute("data-newsteaser-author-id") || "").trim().toLowerCase();
+        },
+        author: function (c) {
+          var a = c.querySelector('[data-newsteaser-field="author-name"]');
+          return a ? a.textContent.trim().toLowerCase() : "";
+        },
+        highlight: function (c) {
+          return (c.getAttribute("data-newsteaser-highlight-box") || "").trim().toLowerCase();
+        }
+      };
+
+      function fieldValue(card, field) {
+        if (FIELDS[field]) return FIELDS[field](card);
+        var v = card.getAttribute("data-newsteaser-" + field);
+        if (v == null) v = card.getAttribute("data-" + field);
+        return (v || "").trim().toLowerCase();
+      }
+
+      function isHighlight(card) {
+        return (card.getAttribute("data-newsteaser-highlight-box") || "").toLowerCase() === "true";
+      }
+
+      var states = new Map();
+
+      function parseDefaultSort(list) {
+        var raw = (list.getAttribute("data-sort") || "").toLowerCase();
+        if (!raw) return null;
+        var m = raw.split("-");
+        var field = m[0] === "published" ? "date" : m[0];
+        return { field: field, dir: (m[1] === "asc" ? "asc" : "desc") };
+      }
+
+      function getState(list) {
+        if (states.has(list)) return states.get(list);
+        var cards = Array.prototype.slice.call(
+          list.querySelectorAll('[data-cms-component="news-card"]')
+        );
+        var state = {
+          list: list,
+          highlight: cards.filter(isHighlight),
+          regular: cards.filter(function (c) { return !isHighlight(c); }),
+          sort: parseDefaultSort(list),
+          filters: {}
+        };
+        state.originalOrder = state.regular.slice();
+        states.set(list, state);
+        render(state);
+        return state;
+      }
+
+      function render(state) {
+        var filters = state.filters;
+        var keys = Object.keys(filters).filter(function (k) {
+          return filters[k] != null && filters[k] !== "";
+        });
+
+        function matches(card) {
+          return keys.every(function (k) {
+            return fieldValue(card, k) === String(filters[k]).toLowerCase();
+          });
+        }
+
+        state.regular.forEach(function (card) {
+          card.style.display = matches(card) ? "" : "none";
+        });
+        if (FILTER_INCLUDES_HIGHLIGHT) {
+          state.highlight.forEach(function (card) {
+            card.style.display = matches(card) ? "" : "none";
+          });
+        }
+
+        var order = state.regular.slice();
+        if (state.sort) {
+          var f = state.sort.field, dir = state.sort.dir === "asc" ? 1 : -1;
+          order.sort(function (a, b) {
+            var va = fieldValue(a, f), vb = fieldValue(b, f);
+            if (va < vb) return -1 * dir;
+            if (va > vb) return 1 * dir;
+            return 0;
+          });
+        } else {
+          order = state.originalOrder.slice();
+        }
+        order.forEach(function (card) { state.list.appendChild(card); });
+      }
+
+      function linkAction(link) {
+        var a = (link.getAttribute("data-filter-action") || "").toLowerCase();
+        if (a === "sort") {
+          return {
+            type: "sort",
+            field: (link.getAttribute("data-filter-field") || "date").toLowerCase(),
+            dir: (link.getAttribute("data-filter-dir") || "desc").toLowerCase()
+          };
+        }
+        if (a === "filter") {
+          return {
+            type: "filter",
+            field: (link.getAttribute("data-filter-field") || "").toLowerCase(),
+            value: link.getAttribute("data-filter-value")
+          };
+        }
+        if (a === "reset") return { type: "reset" };
+
+        var t = (link.textContent || "").toLowerCase();
+        if (/neu|neue?ste/.test(t)) return { type: "sort", field: "date", dir: "desc" };
+        if (/alt|ä?lteste|aelteste/.test(t)) return { type: "sort", field: "date", dir: "asc" };
+        return null;
+      }
+
+      function titleEl(dd) {
+        return dd.querySelector("[dropdown-trigger-title]") ||
+               dd.querySelector(".article-dropdown-title");
+      }
+
+      function updateTitle(dd, link, action) {
+        var el = titleEl(dd);
+        if (!el) return;
+        if (!el.hasAttribute("data-default-title")) {
+          el.setAttribute("data-default-title", el.textContent.trim());
+        }
+        el.textContent = (action && action.type === "reset")
+          ? el.getAttribute("data-default-title")
+          : (link.textContent || "").trim();
+      }
+
+      function markActive(dd, link) {
+        Array.prototype.forEach.call(
+          dd.querySelectorAll("[article-filter-select]"),
+          function (a) {
+            var on = a === link;
+            a.classList.toggle("is-active", on);
+            if (on) a.setAttribute("aria-current", "true");
+            else a.removeAttribute("aria-current");
+          }
+        );
+      }
+
+      function closeWebflowDropdown(dd) {
+        var wf = dd.classList.contains("w-dropdown")
+          ? dd
+          : (dd.querySelector(".w-dropdown") || dd);
+        var toggle = wf.querySelector(".w-dropdown-toggle");
+        var list = wf.querySelector(".w-dropdown-list");
+
+        ["pointerdown", "mousedown"].forEach(function (type) {
+          try {
+            document.documentElement.dispatchEvent(
+              new MouseEvent(type, { bubbles: true, cancelable: true })
+            );
+          } catch (e) {}
+        });
+
+        if (toggle) {
+          toggle.classList.remove("w--open");
+          toggle.setAttribute("aria-expanded", "false");
+        }
+        if (list) list.classList.remove("w--open");
+        if (document.activeElement && wf.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+      }
+
+      document.addEventListener("click", function (event) {
+        var link = event.target.closest("[article-filter-select]");
+        if (!link) return;
+
+        var list = link.closest('[data-cms-component="news-list"]');
+        if (!list) {
+          var scoped = link.closest("[data-filter-target]");
+          if (scoped) list = document.querySelector(scoped.getAttribute("data-filter-target"));
+        }
+        if (!list) return;
+
+        var action = linkAction(link);
+        if (!action) return;
+
+        event.preventDefault();
+        var state = getState(list);
+
+        if (action.type === "sort") {
+          state.sort = { field: action.field, dir: action.dir };
+        } else if (action.type === "filter") {
+          if (action.value == null || action.value === "") delete state.filters[action.field];
+          else state.filters[action.field] = String(action.value).toLowerCase();
+        } else if (action.type === "reset") {
+          state.filters = {};
+          state.sort = parseDefaultSort(list);
+        }
+
+        render(state);
+
+        var dd = link.closest(".article-filter-dropdown") || list;
+        updateTitle(dd, link, action);
+        markActive(dd, link);
+
+        requestAnimationFrame(function () { closeWebflowDropdown(dd); });
+      });
+
+      Array.prototype.forEach.call(
+        document.querySelectorAll('[data-cms-component="news-list"]'),
+        getState
+      );
+    });
+  })();
+
+  (function () {
+    /*
+     * A11y-Fix: Direktlinks im Mega-Menü (.mega_menu-link.is-secondary)
+     * type="link" / aria-expanded stammen aus Webflows Nav-Runtime -> hier entfernt.
+     */
+    onReady(function () {
+      "use strict";
+      var links = Array.prototype.slice.call(
+        document.querySelectorAll("a.mega_menu-link.is-secondary")
+      ).filter(function (el) {
+        return !el.hasAttribute("data-mega-trigger") &&
+               !el.hasAttribute("data-mega-section") &&
+               !el.hasAttribute("aria-controls");
+      });
+      if (!links.length) return;
+      function clean(el) {
+        if (el.getAttribute("type") === "link") el.removeAttribute("type");
+        if (el.hasAttribute("aria-expanded")) el.removeAttribute("aria-expanded");
+      }
+      links.forEach(function (el) {
+        clean(el);
+        new MutationObserver(function () { clean(el); }).observe(el, {
+          attributes: true, attributeFilter: ["type", "aria-expanded"]
         });
       });
     });
