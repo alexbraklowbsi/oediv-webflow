@@ -3245,6 +3245,8 @@ function onReady(fn){
           document.querySelectorAll(".nav_menu-trigger[data-mega-trigger]")
         )
       );
+      var searchTrigger = document.getElementById("nav-search-trigger");
+      if (searchTrigger) expandTriggers.push(searchTrigger);
 
       var langSwitcher = document.querySelector(".nav_language-switcher");
 
