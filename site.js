@@ -3134,21 +3134,26 @@ function onReady(fn){
         function cleanText(el) {
           return el ? (el.textContent || "").replace(/\s+/g, " ").trim() : "";
         }
-        var cmsCrumb = cleanText(
+        var TEMPLATE_NAME = "News Article Tpl";
+
+        // Template-Platzhalter zählt NICHT als echter CMS-Wert
+        function realValue(el) {
+          var t = cleanText(el);
+          return t && t !== TEMPLATE_NAME ? t : "";
+        }
+
+        var cmsCrumb = realValue(
           page.querySelector('[data-newsdetail-field="breadcrumb-title"]')
         );
-        var articleTitle = cleanText(
+        var articleTitle = realValue(
           page.querySelector('[data-newsdetail-field="title"]')
         );
 
-        var current = cleanText(last);
-        var TEMPLATE_NAME = "News Article Tpl";
-
-        // bereits gesetzten CMS-Wert nicht mit Template-Namen überschreiben
+        // echter Breadcrumb-Titel bevorzugt, sonst Artikel-Titel
         var next = cmsCrumb || articleTitle;
-        if (!next) return;                 // noch nichts aus dem CMS da -> später erneut
-        if (next === TEMPLATE_NAME) return; // niemals den Template-Namen setzen
+        if (!next) return;                 // noch nichts Echtes da -> später erneut
 
+        var current = cleanText(last);
         if (current !== next) last.textContent = next; // sicher via textContent
       }
 
