@@ -3111,6 +3111,57 @@ function onReady(fn){
           wrapper.appendChild(node);
         });
       });
+
+      /* ---- News-Detail: letzten Krümel mit Artikeltitel füllen ---- */
+      function newsDetailBreadcrumb() {
+        var page = document.querySelector('[data-cms-component="news-detail"]');
+        if (!page) return;
+
+        var last = null;
+        wrappers.forEach(function (w) {
+          var links = w.querySelectorAll(".breadcrumb-link");
+          if (links.length) last = links[links.length - 1];
+        });
+        if (!last) return;
+
+        // Attribut + aria-current am letzten Krümel sicherstellen
+        last.setAttribute("data-newsdetail-field", "breadcrumb-title");
+        last.setAttribute("aria-current", "page");
+        last.removeAttribute("href");
+        last.classList.add("active");
+
+        // Titelquellen: CMS-Breadcrumb-Titel -> sonst Artikel-Titel
+        function cleanText(el) {
+          return el ? (el.textContent || "").replace(/\s+/g, " ").trim() : "";
+        }
+        var cmsCrumb = cleanText(
+          page.querySelector('[data-newsdetail-field="breadcrumb-title"]')
+        );
+        var articleTitle = cleanText(
+          page.querySelector('[data-newsdetail-field="title"]')
+        );
+
+        var current = cleanText(last);
+        var TEMPLATE_NAME = "News Article Tpl";
+
+        // bereits gesetzten CMS-Wert nicht mit Template-Namen überschreiben
+        var next = cmsCrumb || articleTitle;
+        if (!next) return;                 // noch nichts aus dem CMS da -> später erneut
+        if (next === TEMPLATE_NAME) return; // niemals den Template-Namen setzen
+
+        if (current !== next) last.textContent = next; // sicher via textContent
+      }
+
+      newsDetailBreadcrumb();
+      // spät eingesetzte CMS-Inhalte nachziehen
+      requestAnimationFrame(newsDetailBreadcrumb);
+      window.addEventListener("load", newsDetailBreadcrumb);
+
+      var ndPage = document.querySelector('[data-cms-component="news-detail"]');
+      if (ndPage) {
+        var ndObserver = new MutationObserver(function () { newsDetailBreadcrumb(); });
+        ndObserver.observe(ndPage, { childList: true, subtree: true, characterData: true });
+      }
     });
   })();
 
