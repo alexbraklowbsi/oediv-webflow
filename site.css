@@ -733,3 +733,10 @@
   @media (prefers-reduced-motion: reduce) {
     .article-filter-dropdown-toggle .w-icon-dropdown-toggle { transition: none; }
   }
+
+/* Case Data Counter – Zahl + Text animiert */
+.is-counter-ready { display: grid; }
+.is-counter-ready > .counter-final,
+.is-counter-ready > .counter-anim { grid-area: 1 / 1; }
+.is-counter-ready:not(.is-counter-done) > .counter-final { color: transparent; }
+.counter-anim { font-variant-numeric: tabular-nums; }

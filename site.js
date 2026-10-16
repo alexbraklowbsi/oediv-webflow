@@ -733,33 +733,168 @@ function onReady(fn){
   });
 })();
 
+/* =========================================================
+   Case Data Counter – animiert Zahl UND Text aus counter-data
+   - Zahl am Wortanfang zählt hoch (de-DE, Dezimalen/Tausenderpunkt wie eingegeben)
+   - Text "entschlüsselt" sich (Standard) oder tippt sich ein (counter-effect="type")
+   - counter-duration="ms" optional (Standard 1600)
+   - Screenreader lesen nur den Endwert; prefers-reduced-motion -> sofort Endwert
+   ========================================================= */
 (function () {
-  /*
-   * Case Data Counter
-   */
   onReady(function () {
-    document.querySelectorAll('[counter-data]').forEach((el) => {
-      const target = parseFloat(el.getAttribute('counter-data').replace(',', '.'));
-      const duration = 1600;
+    "use strict";
 
-      new IntersectionObserver(([entry], observer) => {
-        if (!entry.isIntersecting) return;
+    var els = Array.prototype.slice.call(document.querySelectorAll("[counter-data]"));
+    if (!els.length) return;
 
-        const start = performance.now();
+    var DEFAULT_DURATION = 1600;
+    var SCRAMBLE_TICK = 50; // ms zwischen Zufallswechseln
+    var UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    var LOWER = "abcdefghijklmnopqrstuvwxyz";
+    var DIGITS = "0123456789";
+    var reduceMotion = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-        function count(now) {
-          const progress = Math.min((now - start) / duration, 1);
-          const eased = 1 - Math.pow(1 - progress, 3);
+    /* ---------- Parsing ---------- */
+    // Zahl nur am Wortanfang (nicht "365" in "M365")
+    var NUM_RE = /(^|[^0-9A-Za-zÄÖÜäöüß])(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?)/;
 
-          el.textContent = (target * eased).toFixed(2).replace('.', ',');
+    function parse(raw) {
+      var m = raw.match(NUM_RE);
+      if (!m) return { prefix: raw, suffix: "", value: null };
 
-          if (progress < 1) requestAnimationFrame(count);
+      var num = m[2];
+      var start = m.index + m[1].length;
+      return {
+        prefix: raw.slice(0, start),
+        suffix: raw.slice(start + num.length),
+        value: parseFloat(num.replace(/\./g, "").replace(",", ".")),
+        decimals: num.indexOf(",") !== -1 ? num.split(",")[1].length : 0,
+        grouped: num.indexOf(".") !== -1
+      };
+    }
+
+    function formatNumber(v, p) {
+      return v.toLocaleString("de-DE", {
+        minimumFractionDigits: p.decimals,
+        maximumFractionDigits: p.decimals,
+        useGrouping: p.grouped
+      });
+    }
+
+    /* ---------- Text-Effekte ---------- */
+    function randomLike(ch) {
+      var set = /[0-9]/.test(ch) ? DIGITS :
+        /[A-ZÄÖÜ]/.test(ch) ? UPPER :
+        /[a-zäöüß]/.test(ch) ? LOWER : null;
+      return set ? set.charAt(Math.floor(Math.random() * set.length)) : ch;
+    }
+
+    // revealed = Anzahl bereits fertiger Zeichen (über prefix + suffix gezählt)
+    function textFrame(text, offset, revealed, effect) {
+      var out = "";
+      for (var i = 0; i < text.length; i++) {
+        var ch = text.charAt(i);
+        if (offset + i < revealed || /\s/.test(ch)) out += ch;
+        else if (effect !== "type") out += randomLike(ch);
+      }
+      return out;
+    }
+
+    /* ---------- Setup ---------- */
+    function prepare(el) {
+      var raw = (el.getAttribute("counter-data") || "").replace(/\s+/g, " ").trim();
+      if (!raw) return null;
+
+      var final = document.createElement("span");
+      final.className = "counter-final";
+      final.textContent = raw;
+
+      el.textContent = "";
+      el.appendChild(final);
+
+      if (reduceMotion) {
+        el.classList.add("is-counter-ready", "is-counter-done");
+        return null;
+      }
+
+      var anim = document.createElement("span");
+      anim.className = "counter-anim";
+      anim.setAttribute("aria-hidden", "true");
+      el.appendChild(anim);
+      el.classList.add("is-counter-ready");
+
+      var state = {
+        el: el,
+        anim: anim,
+        raw: raw,
+        parts: parse(raw),
+        effect: el.getAttribute("counter-effect") || "scramble",
+        duration: parseInt(el.getAttribute("counter-duration"), 10) || DEFAULT_DURATION,
+        lastTick: -1,
+        lastRevealed: -1,
+        cache: ["", ""]
+      };
+      render(state, 0, 0);
+      return state;
+    }
+
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+    function render(s, progress, elapsed) {
+      var p = s.parts;
+      var textLen = p.prefix.length + p.suffix.length;
+      var revealed = Math.floor(progress * textLen);
+      var tick = Math.floor(elapsed / SCRAMBLE_TICK);
+
+      // Zufallszeichen nur alle SCRAMBLE_TICK ms neu würfeln
+      if (tick !== s.lastTick || revealed !== s.lastRevealed) {
+        s.lastTick = tick;
+        s.lastRevealed = revealed;
+        s.cache = [
+          textFrame(p.prefix, 0, revealed, s.effect),
+          textFrame(p.suffix, p.prefix.length, revealed, s.effect)
+        ];
+      }
+
+      var numOut = p.value === null ? "" : formatNumber(p.value * progress, p);
+      s.anim.textContent = s.cache[0] + numOut + s.cache[1];
+    }
+
+    function run(s) {
+      var start = null;
+      function frame(now) {
+        if (start === null) start = now;
+        var elapsed = now - start;
+        var t = Math.min(elapsed / s.duration, 1);
+        render(s, easeOutCubic(t), elapsed);
+        if (t < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          s.anim.parentNode.removeChild(s.anim);
+          s.el.classList.add("is-counter-done");
         }
+      }
+      requestAnimationFrame(frame);
+    }
 
-        requestAnimationFrame(count);
-        observer.disconnect();
-      }).observe(el);
-    });
+    var states = els.map(prepare).filter(Boolean);
+    if (!states.length) return;
+
+    if (!("IntersectionObserver" in window)) {
+      states.forEach(run);
+      return;
+    }
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        io.unobserve(entry.target);
+        states.forEach(function (s) { if (s.el === entry.target) run(s); });
+      });
+    }, { threshold: 0.5 });
+
+    states.forEach(function (s) { io.observe(s.el); });
   });
 })();
 
