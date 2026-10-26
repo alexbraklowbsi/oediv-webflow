@@ -740,3 +740,23 @@
 .is-counter-ready > .counter-anim { grid-area: 1 / 1; }
 .is-counter-ready:not(.is-counter-done) > .counter-final { color: transparent; }
 .counter-anim { font-variant-numeric: tabular-nums; }
+
+/* YouTube Zwei-Klick (DSGVO) */
+[data-yt-id] { position: relative; aspect-ratio: 16 / 9; }
+.yt-consent-frame {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  border: 0; z-index: 3;
+}
+.yt-consent {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; padding: 1.5rem; text-align: center;
+}
+.yt-consent-text {
+  max-width: 36rem; margin: 0;
+  color: #fff; font-size: .875rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+}
+.yt-consent-text a { color: inherit; text-decoration: underline; }
+.video-wrapper.is-yt-loaded .oediv-youtube-thumbnail,
+.video-wrapper.is-yt-loaded .overlay { display: none; }

@@ -4368,3 +4368,119 @@ function onReady(fn){
       });
     });
   })();
+
+/* =========================================================
+   YouTube – Zwei-Klick-Lösung (DSGVO)
+   - Webflow: Div mit data-yt-id="VIDEO_ID" (KEIN Webflow-YouTube-Element)
+   - optional: data-yt-title, data-yt-start (Sekunden)
+   - Thumbnail/Overlay im .video-wrapper bleiben bis zum Klick sichtbar
+   - Verbindung zu YouTube erst nach Klick (youtube-nocookie.com)
+   - Einwilligung gilt für die Sitzung (sessionStorage)
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var PRIVACY_URL = "/datenschutz.html";
+    var STORAGE_KEY = "oediv-youtube-consent";
+
+    var players = Array.prototype.slice.call(document.querySelectorAll("[data-yt-id]"));
+    if (!players.length) return;
+
+    function hasConsent() {
+      try { return sessionStorage.getItem(STORAGE_KEY) === "1"; } catch (e) { return false; }
+    }
+    function saveConsent() {
+      try { sessionStorage.setItem(STORAGE_KEY, "1"); } catch (e) {}
+    }
+    function wrapperOf(el) {
+      return el.closest(".video-wrapper") || el.parentNode;
+    }
+
+    function load(el, autoplay) {
+      if (el.querySelector("iframe")) return null;
+
+      var id = (el.getAttribute("data-yt-id") || "").trim();
+      if (!id) return null;
+
+      var params = "rel=0&controls=1&playsinline=1" + (autoplay ? "&autoplay=1" : "");
+      var start = parseInt(el.getAttribute("data-yt-start"), 10);
+      if (start > 0) params += "&start=" + start;
+
+      var frame = document.createElement("iframe");
+      frame.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(id) + "?" + params;
+      frame.title = el.getAttribute("data-yt-title") || "YouTube-Video";
+      frame.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
+      frame.className = "yt-consent-frame";
+      el.appendChild(frame);
+
+      var wrap = wrapperOf(el);
+      wrap.classList.add("is-yt-loaded");
+      var consent = wrap.querySelector(".yt-consent");
+      if (consent) consent.parentNode.removeChild(consent);
+
+      return frame;
+    }
+
+    function renderConsent(el) {
+      var wrap = wrapperOf(el);
+      if (wrap.querySelector(".yt-consent")) return;
+
+      var box = document.createElement("div");
+      box.className = "yt-consent";
+
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn-std";
+
+      var icon = document.createElement("span");
+      icon.className = "icon-box-std small";
+      icon.setAttribute("aria-hidden", "true");
+      var glyph = document.createElement("span");
+      glyph.className = "g-material-icon-text";
+      glyph.textContent = "play_arrow";
+      icon.appendChild(glyph);
+
+      var label = document.createElement("span");
+      label.className = "btn-text-span";
+      label.textContent = "Video abspielen";
+
+      button.appendChild(icon);
+      button.appendChild(label);
+
+      var text = document.createElement("p");
+      text.className = "paragraph yt-consent-text";
+      text.appendChild(document.createTextNode(
+        "Mit Klick auf „Video abspielen“ willigen Sie ein, dass Daten wie Ihre IP-Adresse " +
+        "an YouTube (Google) übertragen werden. Mehr dazu in unserer "
+      ));
+      var privacy = document.createElement("a");
+      privacy.href = PRIVACY_URL;
+      privacy.textContent = "Datenschutzerklärung";
+      text.appendChild(privacy);
+      text.appendChild(document.createTextNode("."));
+
+      button.addEventListener("click", function () {
+        saveConsent();
+        var frame = load(el, true);
+        players.forEach(function (other) {
+          if (other !== el) {
+            load(other, false);
+          }
+        });
+        if (frame) frame.focus();
+      });
+
+      box.appendChild(button);
+      box.appendChild(text);
+      wrap.appendChild(box);
+    }
+
+    players.forEach(function (el) {
+      if (hasConsent()) load(el, false);
+      else renderConsent(el);
+    });
+  });
+})();
