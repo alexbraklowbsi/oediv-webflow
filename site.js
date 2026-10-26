@@ -2029,6 +2029,23 @@ function onReady(fn){
         );
         if (!originalSlides.length) return;
 
+        /* Optional: zufällige Reihenfolge bei jedem Seitenaufruf
+           Attribut data-sorting="random" (oder sorting="random")
+           an .logo-trust-slider-mask oder .logo-trust-slider */
+        var sortAttr = (
+          mask.getAttribute("data-sorting") || mask.getAttribute("sorting") ||
+          slider.getAttribute("data-sorting") || slider.getAttribute("sorting") || ""
+        ).toLowerCase();
+
+        if (sortAttr === "random") {
+          for (var i = originalSlides.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = originalSlides[i];
+            originalSlides[i] = originalSlides[j];
+            originalSlides[j] = tmp;
+          }
+        }
+
         var gradients = Array.prototype.slice.call(
           mask.querySelectorAll(".logo-trust-slider-mask-gradient")
         );
