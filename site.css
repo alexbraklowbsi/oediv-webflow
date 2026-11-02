@@ -760,3 +760,12 @@
 .yt-consent-text a { color: inherit; text-decoration: underline; }
 .video-wrapper.is-yt-loaded .oediv-youtube-thumbnail,
 .video-wrapper.is-yt-loaded .overlay { display: none; }
+
+/* Nav Current State */
+.nav_menu-trigger.is-current .nav_menu-trigger-text,
+.mega_menu-link.is-current .mega_menu-link-text,
+.nav_dropdown-link.is-current .nav_dropdown-link-text {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: .35em;
+}

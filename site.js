@@ -4484,3 +4484,114 @@ function onReady(fn){
     });
   });
 })();
+
+/* =========================================================
+   Nav Current State – markiert die aktuelle Position im Menü
+   - Ebene 1: genau ein Top-Level-Trigger [data-mega-trigger] -> .is-current
+     Gewinner = Trigger, dessen Slug am tiefsten im Pfad steht
+     (/unternehmen/karriere -> Karriere, nicht Unternehmen);
+     ohne Slug-Treffer: Trigger, dessen Panel einen exakt passenden Link hat
+   - Ebene 2: [data-mega-section] = nächstes Pfadsegment nach dem Trigger-Slug,
+     sowie .mega_menu-link.is-primary, deren URL Präfix des Pfads ist
+   - Ebene 3: Link mit exakt passender URL -> .is-current + aria-current="page"
+   - Markiert nur im Panel des Gewinners (Platzhalter anderer Menüs zählen nicht)
+   - Ignoriert Links mit #, sowie .html, /index, Slash am Ende, Sprachpräfix /en
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var nav = document.querySelector('[data-mega-nav="true"]');
+    if (!nav) return;
+
+    var LANG_CODES = ["de", "en"];
+    var CLS = "is-current";
+
+    function segmentsOf(path) {
+      try { path = decodeURIComponent(path); } catch (e) {}
+      var segs = path.toLowerCase().replace(/\.html?$/, "").split("/").filter(Boolean);
+      if (segs.length && segs[segs.length - 1] === "index") segs.pop();
+      if (segs.length && LANG_CODES.indexOf(segs[0]) !== -1) segs.shift();
+      return segs;
+    }
+
+    function linkSegs(a) {
+      var raw = a.getAttribute("href");
+      if (!raw || raw.indexOf("#") !== -1) return null;
+      var url;
+      try { url = new URL(raw, location.href); } catch (e) { return null; }
+      if (url.origin !== location.origin) return null;
+      return segmentsOf(url.pathname);
+    }
+
+    function isPrefix(a, b) {
+      if (a.length > b.length) return false;
+      for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+      return true;
+    }
+    function same(a, b) { return a.length === b.length && isPrefix(a, b); }
+
+    var current = segmentsOf(location.pathname);
+    if (!current.length) return; // Startseite: nichts aktiv
+
+    function mark(el, exact) {
+      el.classList.add(CLS);
+      if (exact) el.setAttribute("aria-current", "page");
+    }
+
+    function panelOf(trigger) {
+      var id = (trigger.getAttribute("aria-controls") || "").split(/\s+/)[0];
+      return id ? document.getElementById(id) : null;
+    }
+
+    function exactLinksIn(panel) {
+      if (!panel) return [];
+      return Array.prototype.filter.call(panel.querySelectorAll("a[href]"), function (a) {
+        var s = linkSegs(a);
+        return s && s.length && same(s, current);
+      });
+    }
+
+    var triggers = Array.prototype.slice.call(nav.querySelectorAll("[data-mega-trigger]"));
+
+    /* ---- Ebene 1 ---- */
+    var winner = null;
+    var best = 0;
+    triggers.forEach(function (t) {
+      var pos = current.indexOf((t.getAttribute("data-mega-trigger") || "").toLowerCase());
+      if (pos !== -1 && pos + 1 > best) { best = pos + 1; winner = t; }
+    });
+    if (!winner) {
+      winner = triggers.filter(function (t) {
+        return exactLinksIn(panelOf(t)).length > 0;
+      })[0] || null;
+    }
+    if (!winner) return;
+
+    mark(winner, false);
+
+    var panel = panelOf(winner);
+    if (!panel) return;
+
+    /* ---- Ebene 2 ---- */
+    var slugPos = current.indexOf((winner.getAttribute("data-mega-trigger") || "").toLowerCase());
+    var next = slugPos !== -1 ? current[slugPos + 1] : null;
+
+    if (next) {
+      Array.prototype.forEach.call(panel.querySelectorAll("[data-mega-section]"), function (btn) {
+        if ((btn.getAttribute("data-mega-section") || "").toLowerCase() === next) mark(btn, false);
+      });
+    }
+
+    Array.prototype.forEach.call(
+      panel.querySelectorAll("a.mega_menu-link.is-primary[href]"),
+      function (a) {
+        var s = linkSegs(a);
+        if (s && s.length && isPrefix(s, current)) mark(a, same(s, current));
+      }
+    );
+
+    /* ---- Ebene 3 ---- */
+    exactLinksIn(panel).forEach(function (a) { mark(a, true); });
+  });
+})();
