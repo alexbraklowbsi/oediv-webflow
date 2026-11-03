@@ -4595,3 +4595,93 @@ function onReady(fn){
     exactLinksIn(panel).forEach(function (a) { mark(a, true); });
   });
 })();
+
+/* =========================================================
+   Std Slider – Equal Height (+ Testimonial 16:9 bei Stapel-Layout)
+   - aktiv für .std-slider mit .testimonial-slide-big-wrapper
+     oder mit Attribut data-slider-equal-height
+   - misst die natürliche Inhaltshöhe jedes Slides, höchster gibt Höhe vor
+     (-> --std-slider-slide-height am Slider)
+   - erkennt, ob Bild + Text untereinander stehen -> .is-stacked
+     (dann Bild fest 16:9, kein Hoch-/Quadratformat)
+   - neu messen bei Resize (nur Breitenänderung), Bild-Load, Fonts, window.load
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var sliders = Array.prototype.filter.call(
+      document.querySelectorAll(".std-slider"),
+      function (s) {
+        return s.hasAttribute("data-slider-equal-height") ||
+          !!s.querySelector(".testimonial-slide-big-wrapper");
+      }
+    );
+    if (!sliders.length) return;
+
+    function detectStacked(slider) {
+      var img = slider.querySelector(".testimonial-slide-big-box.is-image");
+      if (!img) return false;
+      var txt = img.parentNode.querySelector(".testimonial-slide-big-box:not(.is-image)");
+      if (!txt) return false;
+      var a = img.getBoundingClientRect();
+      var b = txt.getBoundingClientRect();
+      if (!a.height || !b.height) return false;
+      return b.top >= a.bottom - 1;
+    }
+
+    function measure(slider) {
+      var slides = slider.querySelectorAll(".std-slider-slide");
+      if (!slides.length) return;
+
+      // Ausgangszustand: keine erzwungene Höhe, kein Stapel-Modus
+      slider.removeAttribute("data-equal-height-ready");
+      slider.style.removeProperty("--std-slider-slide-height");
+      slider.classList.remove("is-stacked");
+
+      // Layout erkennen (Webflow-Original), dann 16:9-Modus setzen
+      slider.classList.toggle("is-stacked", detectStacked(slider));
+
+      // Natürliche Inhaltshöhe messen
+      slider.classList.add("is-measuring");
+      var max = 0;
+      for (var i = 0; i < slides.length; i++) {
+        max = Math.max(max, slides[i].getBoundingClientRect().height);
+      }
+      slider.classList.remove("is-measuring");
+
+      if (max > 0) {
+        slider.style.setProperty("--std-slider-slide-height", Math.ceil(max) + "px");
+        slider.setAttribute("data-equal-height-ready", "");
+      }
+    }
+
+    sliders.forEach(function (slider) {
+      var frame = null;
+      function schedule() {
+        if (frame) return;
+        frame = requestAnimationFrame(function () {
+          frame = null;
+          measure(slider);
+        });
+      }
+
+      Array.prototype.forEach.call(slider.querySelectorAll("img"), function (img) {
+        if (!img.complete) img.addEventListener("load", schedule, { once: true });
+      });
+
+      var lastWidth = slider.getBoundingClientRect().width;
+      window.addEventListener("resize", function () {
+        var w = slider.getBoundingClientRect().width;
+        if (w === lastWidth) return;
+        lastWidth = w;
+        schedule();
+      }, { passive: true });
+
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+      window.addEventListener("load", schedule);
+
+      schedule();
+    });
+  });
+})();
