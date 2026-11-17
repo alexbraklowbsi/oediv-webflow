@@ -835,3 +835,16 @@
 .std-slider.is-stacked .testimonial-slide-big-box:not(.is-image) {
   flex: 1 1 auto;
 }
+
+/* Insight TOC */
+[data-insight-field="body"] :is(h2, h3) { scroll-margin-top: 7rem; }
+.data-insight-toc-list-item.is-sub { padding-left: 1rem; }
+a.data-insight-toc-list-text { text-decoration: none; color: inherit; }
+a.data-insight-toc-list-text:hover,
+a.data-insight-toc-list-text.is-current { text-decoration: underline; text-underline-offset: .3em; }
+
+/* Teilen – Screenreader-Status */
+.share-status {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}

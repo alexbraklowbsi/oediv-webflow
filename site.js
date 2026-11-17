@@ -4685,3 +4685,181 @@ function onReady(fn){
     });
   });
 })();
+
+/* =========================================================
+   Insight-Artikel – Inhaltsverzeichnis (TOC) aus Rich-Text
+   - nav[data-insight-component="toc"] mit einer Muster-<li> als Vorlage
+   - Quelle: [data-insight-field="body"] (Fallback: .w-richtext)
+   - Ebenen: data-toc-levels="h2,h3" am nav (Standard h2,h3)
+   - IDs aus Text (Umlaute -> ae/oe/ue/ss), eindeutig
+   - sichtbar erst ab data-toc-min (Standard 2) Überschriften
+   - aktueller Abschnitt: .is-current + aria-current="location"
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll('[data-insight-component="toc"]'),
+      function (nav) {
+        var scope = nav.closest(".article-copy-wrapper") || document;
+        var body = scope.querySelector('[data-insight-field="body"]') ||
+          document.querySelector('[data-insight-field="body"]') ||
+          scope.querySelector(".w-richtext");
+        if (!body) return;
+
+        var levels = (nav.getAttribute("data-toc-levels") || "h2,h3").toLowerCase();
+        var min = parseInt(nav.getAttribute("data-toc-min"), 10) || 2;
+        var headings = Array.prototype.filter.call(
+          body.querySelectorAll(levels),
+          function (h) { return h.textContent.trim(); }
+        );
+
+        var list = nav.querySelector("ul, ol");
+        var tpl = list && list.querySelector("li");
+        if (!list || !tpl || headings.length < min) return;
+
+        var tplText = tpl.querySelector(".data-insight-toc-list-text");
+        var textClass = tplText ? tplText.className : "data-insight-toc-list-text";
+        tpl = tpl.cloneNode(false); // nur das <li> mit Klassen
+        list.textContent = "";
+
+        var used = {};
+        function slug(text) {
+          var s = text.toLowerCase()
+            .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+            .normalize("NFD").replace(/[̀-ͯ]/g, "")
+            .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "abschnitt";
+          var base = s, i = 2;
+          while (used[s] || (document.getElementById(s) && !used[s])) s = base + "-" + i++;
+          used[s] = true;
+          return s;
+        }
+
+        var topLevel = headings[0].tagName;
+        var links = headings.map(function (h) {
+          if (!h.id) h.id = slug(h.textContent.trim());
+          else used[h.id] = true;
+
+          var li = tpl.cloneNode(false);
+          if (h.tagName !== topLevel) li.classList.add("is-sub");
+
+          var a = document.createElement("a");
+          a.className = textClass;
+          a.href = "#" + h.id;
+          a.textContent = h.textContent.trim();
+
+          li.appendChild(a);
+          list.appendChild(li);
+          return a;
+        });
+
+        nav.hidden = false;
+
+        /* aktuellen Abschnitt markieren */
+        if (!("IntersectionObserver" in window)) return;
+        var current = null;
+        function setCurrent(a) {
+          if (a === current) return;
+          if (current) { current.classList.remove("is-current"); current.removeAttribute("aria-current"); }
+          current = a;
+          if (a) { a.classList.add("is-current"); a.setAttribute("aria-current", "location"); }
+        }
+
+        var visible = {};
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+          for (var i = 0; i < headings.length; i++) {
+            if (visible[headings[i].id]) { setCurrent(links[i]); return; }
+          }
+        }, { rootMargin: "-15% 0px -70% 0px" });
+
+        headings.forEach(function (h) { io.observe(h); });
+      }
+    );
+  });
+})();
+
+/* =========================================================
+   Artikel teilen – News-Detail + Insight-Detail
+   - Buttons: [data-share], [data-newsdetail-action="share"], [data-blogarticle-action="share"]
+   - Mobil: natives Teilen (navigator.share); Desktop: Link kopieren + Feedback
+   - Titel: h1 [data-*-field="title"] > h1 > document.title
+   - keine Drittanbieter-Scripts (DSGVO)
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var SELECTOR = '[data-share], [data-newsdetail-action="share"], [data-blogarticle-action="share"]';
+    var COPIED = "Link kopiert";
+    var RESET_MS = 2000;
+
+    var live = document.createElement("p");
+    live.className = "share-status";
+    live.setAttribute("aria-live", "polite");
+    document.body.appendChild(live);
+
+    function pageTitle() {
+      var h = document.querySelector('h1[data-newsdetail-field="title"], h1[data-insight-field="title"]') ||
+        document.querySelector("h1");
+      return (h ? h.textContent : document.title).replace(/\s+/g, " ").trim();
+    }
+
+    function pageUrl() {
+      var c = document.querySelector('link[rel="canonical"]');
+      return (c && c.href) || location.href.split("#")[0];
+    }
+
+    function copy(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+        ok ? resolve() : reject();
+      });
+    }
+
+    function feedback(btn, text) {
+      var label = btn.querySelector(".btn-text-span") || btn;
+      if (!btn.hasAttribute("data-share-label")) {
+        btn.setAttribute("data-share-label", label.textContent);
+      }
+      label.textContent = text;
+      live.textContent = text;
+      clearTimeout(btn._shareTimer);
+      btn._shareTimer = setTimeout(function () {
+        label.textContent = btn.getAttribute("data-share-label");
+        live.textContent = "";
+      }, RESET_MS);
+    }
+
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest(SELECTOR);
+      if (!btn) return;
+      e.preventDefault();
+
+      var data = { title: pageTitle(), url: pageUrl() };
+
+      if (navigator.share && (!navigator.canShare || navigator.canShare(data))) {
+        navigator.share(data).catch(function () { /* Abbruch durch Nutzer: nichts tun */ });
+        return;
+      }
+
+      copy(data.url).then(
+        function () { feedback(btn, COPIED); },
+        function () { window.prompt("Link kopieren:", data.url); }
+      );
+    });
+  });
+})();
