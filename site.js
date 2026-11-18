@@ -4863,3 +4863,106 @@ function onReady(fn){
     });
   });
 })();
+
+/* =========================================================
+   HubSpot-Formulare – Klick-Einwilligung (DSGVO)
+   - Webflow-Embed enthält NUR:
+     <div class="hs-form-frame" data-region="eu1" data-form-id="…" data-portal-id="…"></div>
+     (KEIN <script src="…hsforms.net…">)
+   - optional: data-hs-fallback="mail@domain.de" (alternative Kontaktmöglichkeit im Hinweis)
+   - lädt https://js-<region>.hsforms.net/forms/embed/<portal>.js erst nach Klick
+   - Einwilligung gilt für die Sitzung (sessionStorage), dann alle Formulare direkt
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var PRIVACY_URL = "/datenschutz.html";
+    var STORAGE_KEY = "oediv-hubspot-consent";
+
+    var frames = Array.prototype.slice.call(
+      document.querySelectorAll(".hs-form-frame[data-portal-id]")
+    );
+    if (!frames.length) return;
+
+    var loaded = {};
+
+    function hasConsent() {
+      try { return sessionStorage.getItem(STORAGE_KEY) === "1"; } catch (e) { return false; }
+    }
+    function saveConsent() {
+      try { sessionStorage.setItem(STORAGE_KEY, "1"); } catch (e) {}
+    }
+
+    function loadAll() {
+      frames.forEach(function (frame) {
+        var box = frame.previousElementSibling;
+        if (box && box.classList.contains("hs-consent")) box.parentNode.removeChild(box);
+        frame.hidden = false;
+
+        var region = frame.getAttribute("data-region") || "eu1";
+        var portal = frame.getAttribute("data-portal-id");
+        var src = "https://js-" + region + ".hsforms.net/forms/embed/" + portal + ".js";
+        if (loaded[src]) return;
+        loaded[src] = true;
+
+        var s = document.createElement("script");
+        s.src = src;
+        s.defer = true;
+        document.head.appendChild(s);
+      });
+    }
+
+    function renderConsent(frame) {
+      frame.hidden = true;
+
+      var box = document.createElement("div");
+      box.className = "hs-consent";
+
+      var text = document.createElement("p");
+      text.className = "paragraph hs-consent-text";
+      text.appendChild(document.createTextNode(
+        "Dieses Formular wird von HubSpot bereitgestellt. Mit Klick auf „Formular laden“ " +
+        "willigen Sie ein, dass Daten wie Ihre IP-Adresse an HubSpot übertragen werden. " +
+        "Mehr dazu in unserer "
+      ));
+      var privacy = document.createElement("a");
+      privacy.href = PRIVACY_URL;
+      privacy.textContent = "Datenschutzerklärung";
+      text.appendChild(privacy);
+      text.appendChild(document.createTextNode("."));
+
+      var fallback = frame.getAttribute("data-hs-fallback");
+      if (fallback) {
+        text.appendChild(document.createTextNode(" Alternativ erreichen Sie uns per E-Mail an "));
+        var mail = document.createElement("a");
+        mail.href = "mailto:" + fallback;
+        mail.textContent = fallback;
+        text.appendChild(mail);
+        text.appendChild(document.createTextNode("."));
+      }
+
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn-std";
+      var label = document.createElement("span");
+      label.className = "btn-text-span";
+      label.textContent = "Formular laden";
+      button.appendChild(label);
+
+      button.addEventListener("click", function () {
+        saveConsent();
+        loadAll();
+        frame.setAttribute("tabindex", "-1");
+        frame.focus();
+      });
+
+      box.appendChild(text);
+      box.appendChild(button);
+      frame.parentNode.insertBefore(box, frame);
+    }
+
+    if (hasConsent()) loadAll();
+    else frames.forEach(renderConsent);
+  });
+})();

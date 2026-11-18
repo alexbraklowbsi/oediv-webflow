@@ -961,3 +961,16 @@ a.data-insight-toc-list-text:focus-visible {
   --hsf-row__vertical-spacing: 1.25rem;
   --hsf-module__vertical-spacing: 0.5rem;
 }
+
+/* HubSpot-Formular – Einwilligung */
+.hs-consent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 2rem;
+  border: 1px solid rgba(15, 23, 42, .15);
+}
+.hs-consent-text { max-width: 40rem; margin: 0; }
+.hs-consent-text a { text-decoration: underline; }
+.hs-form-frame:focus { outline: none; }
