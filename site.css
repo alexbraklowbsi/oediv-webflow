@@ -886,3 +886,78 @@ a.data-insight-toc-list-text:focus-visible {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
 }
+
+/* =========================================================
+   HubSpot-Formulare (global für alle Formulare)
+   Greift NUR beim HubSpot-"Developer code (Advanced)"-Embed.
+   Der Standard-Embed (hs-form-frame / iframe) ist von außen
+   nicht stylebar – dort gilt nur das Styling im HubSpot-Editor.
+   Doku: developers.hubspot.com/docs/cms/start-building/features/forms/forms
+   Werte (Radius, Padding, Grautöne) gegen btn-std / form-card abgleichen.
+   ========================================================= */
+:root {
+  /* Global */
+  --hsf-global__font-family: 'Roboto', sans-serif;
+  --hsf-global__font-size: 1rem;
+  --hsf-global__color: var(--oediv-blau-dunkel, #061725);
+  --hsf-global-error__color: var(--oediv-sinopia, #e02900);
+
+  /* Überschrift & Rich Text */
+  --hsf-heading__font-family: 'Roboto', sans-serif;
+  --hsf-heading__color: var(--oediv-blau, #103a5d);
+  --hsf-richtext__font-family: 'Roboto', sans-serif;
+  --hsf-richtext__color: var(--oediv-blau-dunkel, #061725);
+
+  /* Labels */
+  --hsf-field-label__font-family: 'Roboto', sans-serif;
+  --hsf-field-label__color: var(--oediv-blau, #103a5d);
+  --hsf-field-label-requiredindicator__color: var(--neon-blau, #4964fd);
+  --hsf-field-description__color: var(--oediv-blau, #103a5d);
+
+  /* Inputs */
+  --hsf-field-input__font-family: 'Roboto', sans-serif;
+  --hsf-field-input__color: var(--oediv-blau-dunkel, #061725);
+  --hsf-field-input__background-color: #fff;
+  --hsf-field-input__placeholder-color: #8a97a3;
+  --hsf-field-input__border-color: #d5d9de;
+  --hsf-field-input__border-width: 1px;
+  --hsf-field-input__border-style: solid;
+  --hsf-field-input__border-radius: 4px;
+  --hsf-field-input__padding: 0.75rem 1rem;
+
+  /* Textarea */
+  --hsf-field-textarea__font-family: 'Roboto', sans-serif;
+  --hsf-field-textarea__color: var(--oediv-blau-dunkel, #061725);
+  --hsf-field-textarea__background-color: #fff;
+  --hsf-field-textarea__placeholder-color: #8a97a3;
+  --hsf-field-textarea__border-color: #d5d9de;
+  --hsf-field-textarea__border-width: 1px;
+  --hsf-field-textarea__border-style: solid;
+  --hsf-field-textarea__border-radius: 4px;
+  --hsf-field-textarea__padding: 0.75rem 1rem;
+
+  /* Checkbox / Radio (Opt-in, DSGVO) */
+  --hsf-field-checkbox__border-color: var(--oediv-blau, #103a5d);
+  --hsf-field-checkbox__color: var(--neon-blau, #4964fd);
+  --hsf-field-radio__border-color: var(--oediv-blau, #103a5d);
+  --hsf-field-radio__color: var(--neon-blau, #4964fd);
+
+  /* Button = btn-std (Neon) */
+  --hsf-button__font-family: 'Roboto', sans-serif;
+  --hsf-button__font-size: 1rem;
+  --hsf-button__color: #fff;
+  --hsf-button__background-color: var(--neon-blau, #4964fd);
+  --hsf-button__background-image: none;
+  --hsf-button__border-radius: 4px;
+  --hsf-button__padding: 0.9rem 1.75rem;
+  --hsf-button__box-shadow: none;
+
+  /* Formular-Hintergrund transparent – Karte/Fläche liefert Webflow */
+  --hsf-background__background-color: transparent;
+  --hsf-background__border-width: 0;
+  --hsf-background__padding: 0;
+
+  /* Abstände */
+  --hsf-row__vertical-spacing: 1.25rem;
+  --hsf-module__vertical-spacing: 0.5rem;
+}
