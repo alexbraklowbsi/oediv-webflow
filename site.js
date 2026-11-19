@@ -4966,3 +4966,121 @@ function onReady(fn){
     else frames.forEach(renderConsent);
   });
 })();
+
+/* =========================================================
+   Glossar – Buchstabenfilter
+   Markup-Vertrag:
+   - nav[data-glossary-filter="<list-id>"]
+       button[data-glossary-letter]  → "all" | "A"–"Z"
+   - #<list-id>  (die Karten-Liste)
+       [data-cms-component="glossary-card"]
+         [data-glossaryteaser-field="term"]  (Begrifftext)
+   - [data-glossary-empty]  (Leerzustand, standard display:none per CSS)
+   CSS-Klassen (Webflow): .is-active, .is-disabled
+   Hash: #glossar-<buchstabe-klein> bzw. kein Hash für "all"
+   Mehrere Filter-Navs pro Seite werden unterstützt.
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var HASH_PREFIX = "glossar-";
+
+    /* Ä/Ö/Ü auf A/O/U abbilden, alles andere normaliserern */
+    function initialOf(term) {
+      var ch = term.trim().charAt(0).toUpperCase();
+      if (ch === "\xC4") return "A"; // Ä
+      if (ch === "\xD6") return "O"; // Ö
+      if (ch === "\xDC") return "U"; // Ü
+      if (ch >= "A" && ch <= "Z") return ch;
+      return "#";
+    }
+
+    var navs = Array.prototype.slice.call(
+      document.querySelectorAll("nav[data-glossary-filter]")
+    );
+    if (!navs.length) return;
+
+    navs.forEach(function (nav) {
+      var listId = nav.getAttribute("data-glossary-filter");
+      var list = document.getElementById(listId);
+      if (!list) return;
+
+      var cards = Array.prototype.slice.call(
+        list.querySelectorAll('[data-cms-component="glossary-card"]')
+      );
+      var empty = list.querySelector("[data-glossary-empty]");
+      var btns = Array.prototype.slice.call(
+        nav.querySelectorAll("button[data-glossary-letter]")
+      );
+
+      /* Schritt 1: Anfangsbuchstaben an Karten heften */
+      var usedLetters = {};
+      cards.forEach(function (card) {
+        var termEl = card.querySelector('[data-glossaryteaser-field="term"]');
+        var initial = termEl ? initialOf(termEl.textContent) : "#";
+        card.setAttribute("data-glossary-initial", initial);
+        usedLetters[initial] = true;
+      });
+
+      /* Schritt 2: Buttons ohne Treffer deaktivieren */
+      btns.forEach(function (btn) {
+        var letter = btn.getAttribute("data-glossary-letter");
+        if (letter === "all") return;
+        if (!usedLetters[letter]) {
+          btn.classList.add("is-disabled");
+          btn.disabled = true;
+          btn.setAttribute("aria-disabled", "true");
+        }
+      });
+
+      /* Schritt 3–4: Filter anwenden */
+      function applyFilter(letter) {
+        var showAll = (letter === "all");
+        var anyVisible = false;
+
+        cards.forEach(function (card) {
+          var match = showAll || card.getAttribute("data-glossary-initial") === letter;
+          card.style.display = match ? "" : "none";
+          if (match) anyVisible = true;
+        });
+
+        if (empty) empty.style.display = anyVisible ? "" : "block";
+
+        btns.forEach(function (btn) {
+          var active = btn.getAttribute("data-glossary-letter") === letter;
+          btn.classList.toggle("is-active", active);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+      }
+
+      /* Schritt 5: Hash lesen / schreiben */
+      function letterFromHash() {
+        var hash = location.hash.replace("#", "");
+        if (!hash || hash.indexOf(HASH_PREFIX) !== 0) return "all";
+        var candidate = hash.slice(HASH_PREFIX.length).toUpperCase();
+        if (candidate.length === 1 && usedLetters[candidate]) return candidate;
+        return "all";
+      }
+
+      function pushHash(letter) {
+        var target = letter === "all" ? "" : "#" + HASH_PREFIX + letter.toLowerCase();
+        if (history.replaceState) {
+          history.replaceState(null, "", target || location.pathname + location.search);
+        }
+      }
+
+      /* Klick-Handler */
+      nav.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-glossary-letter]");
+        if (!btn || btn.disabled) return;
+        var letter = btn.getAttribute("data-glossary-letter");
+        applyFilter(letter);
+        pushHash(letter);
+      });
+
+      /* Schritt 6: Startzustand */
+      applyFilter(letterFromHash());
+    });
+  });
+})();
