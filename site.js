@@ -3,6 +3,64 @@ function onReady(fn){
   else document.addEventListener('DOMContentLoaded', fn);
 }
 
+/* =========================================================
+   Sprunglink + main-Landmarke (Barrierefreiheit)
+   - a.skip-link im HTML fokussiert #main per Klick/Enter
+   - Kein <main> im Dokument: wird aus Body-Kindern gebaut
+     (zwischen header.site_header und div.footer-main,
+      Skripte, Stile und position:fixed-Elemente bleiben außerhalb)
+   - Vorhandenes <main>: id="main" + tabindex="-1" ergänzen falls nötig
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var main = document.querySelector("main");
+
+    if (!main) {
+      main = document.createElement("main");
+      main.id = "main";
+      main.setAttribute("tabindex", "-1");
+
+      var body   = document.body;
+      var kids   = Array.prototype.slice.call(body.children);
+      var header = body.querySelector("header.site_header");
+      var footer = body.querySelector("div.footer-main");
+
+      /* Direktkind-Indizes (querySelector findet auch tief verschachtelte) */
+      var headerIdx = header ? kids.indexOf(header) : -1;
+      var footerIdx = footer ? kids.indexOf(footer) : -1;
+      var start = headerIdx >= 0 ? headerIdx + 1 : 0;
+      var end   = footerIdx >= 0 ? footerIdx      : kids.length;
+
+      var toMove = kids.slice(start, end).filter(function (el) {
+        if (el.tagName === "SCRIPT" || el.tagName === "STYLE") return false;
+        try { if (window.getComputedStyle(el).position === "fixed") return false; }
+        catch (e) {}
+        return true;
+      });
+
+      /* <main> vor dem Footer (oder ans Body-Ende) einfügen, dann befüllen */
+      body.insertBefore(main, footer || null);
+      toMove.forEach(function (el) { main.appendChild(el); });
+
+    } else {
+      if (!main.id)                       main.id = "main";
+      if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+    }
+
+    /* Skip-Link-Klick: Fokus auf <main> setzen */
+    document.addEventListener("click", function (e) {
+      var link = e.target.closest("a.skip-link");
+      if (!link) return;
+      var target = document.getElementById("main");
+      if (!target) return;
+      e.preventDefault();
+      target.focus({ preventScroll: false });
+    });
+  });
+})();
+
 (function () {
   /*
    * Mega Menu

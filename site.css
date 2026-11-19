@@ -998,3 +998,29 @@ a.data-insight-toc-list-text:focus-visible {
   .glossary-btn.is-disabled,
   .glossary-btn[disabled] { display: none; }
 }
+
+/* =========================================================
+   Sprunglink + main-Landmarke (Barrierefreiheit)
+   ========================================================= */
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -100px;
+  z-index: 10000;
+  padding: 12px 20px;
+  background: var(--oediv-blau-dunkel);
+  color: #fff;
+  border-radius: 0 0 12px 12px;
+  text-decoration: none;
+  font-weight: 500;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: 0;
+  outline: 2px solid var(--neon-blau);
+  outline-offset: 2px;
+}
+main:focus { outline: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .skip-link { transition: top .15s ease; }
+}
