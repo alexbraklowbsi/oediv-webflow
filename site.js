@@ -5088,6 +5088,231 @@ function onReady(fn){
 })();
 
 /* =========================================================
+   Experten-Filter
+   Markup-Vertrag:
+   - nav.experts-filter[data-person-filter="<list-id>"]
+       button.glossary-btn[data-person-filter-value]
+         .glossary-btn-text (Button-Label)
+       Werte: "all" | "none" | "key1 key2 …" (Leerzeichen-getrennt)
+   - #<list-id> (Karten-Liste)
+       Direktkinder außer .w-embed = Karten
+         [data-person-area]  (Leerzeichen-getrennte Keys, kann fehlen)
+   - [data-person-empty] (Leerzustand, standard display:none per CSS)
+   - Mobil: label.experts-filter-label + select.experts-filter-select
+   - nav._oedivRefresh() – nach CMS-Nachladen aufrufen
+   Hash: #experten-<erster Key> | #experten-weitere | kein Hash
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var HASH_PREFIX = "experten-";
+    var HASH_NONE   = "experten-weitere";
+
+    var navs = Array.prototype.slice.call(
+      document.querySelectorAll("nav[data-person-filter]")
+    );
+    if (!navs.length) return;
+
+    navs.forEach(function (nav) {
+      if (nav.dataset.personFilterInit) return; // idempotent
+      nav.dataset.personFilterInit = "1";
+
+      var listId  = nav.getAttribute("data-person-filter");
+      var list    = document.getElementById(listId);
+      if (!list) return;
+
+      var btns    = Array.prototype.slice.call(
+        nav.querySelectorAll("button[data-person-filter-value]")
+      );
+      var emptyEl = list.querySelector("[data-person-empty]");
+      var cards   = [];
+      var currentValue = "all";
+      var select  = null;
+
+      /* Screenreader-Statusmeldung (visuell versteckt, aria-live) */
+      var statusEl = document.createElement("span");
+      statusEl.setAttribute("aria-live", "polite");
+      statusEl.setAttribute("aria-atomic", "true");
+      statusEl.className = "experts-filter-status";
+      nav.appendChild(statusEl);
+
+      /* ---- Hilfsfunktionen ---- */
+      function areasOf(card) {
+        var raw = (card.getAttribute("data-person-area") || "").trim();
+        return raw ? raw.split(/\s+/) : [];
+      }
+
+      function cardMatches(card, value) {
+        if (value === "all") return true;
+        var areas = areasOf(card);
+        if (value === "none") return areas.length === 0;
+        var keys = value.split(/\s+/);
+        for (var i = 0; i < keys.length; i++) {
+          if (areas.indexOf(keys[i]) !== -1) return true;
+        }
+        return false;
+      }
+
+      function scanCards() {
+        cards = Array.prototype.filter.call(
+          list.children,
+          function (el) { return !el.classList.contains("w-embed"); }
+        );
+      }
+
+      function updateButtonStates() {
+        btns.forEach(function (btn) {
+          var val = btn.getAttribute("data-person-filter-value");
+          if (val === "all") {
+            btn.classList.remove("is-disabled");
+            btn.disabled = false;
+            btn.removeAttribute("aria-disabled");
+            return;
+          }
+          var hasMatch = false;
+          for (var i = 0; i < cards.length; i++) {
+            if (cardMatches(cards[i], val)) { hasMatch = true; break; }
+          }
+          btn.classList.toggle("is-disabled", !hasMatch);
+          btn.disabled = !hasMatch;
+          if (!hasMatch) btn.setAttribute("aria-disabled", "true");
+          else           btn.removeAttribute("aria-disabled");
+        });
+      }
+
+      function updateSelectState() {
+        if (!select) return;
+        Array.prototype.forEach.call(select.options, function (opt) {
+          var disabled = false;
+          for (var i = 0; i < btns.length; i++) {
+            if (btns[i].getAttribute("data-person-filter-value") === opt.value) {
+              disabled = btns[i].disabled;
+              break;
+            }
+          }
+          opt.disabled = disabled;
+        });
+        select.value = currentValue;
+      }
+
+      function applyFilter(value) {
+        currentValue = value;
+        var count = 0;
+
+        cards.forEach(function (card) {
+          var show = cardMatches(card, value);
+          card.style.display = show ? "" : "none";
+          if (show) count++;
+        });
+
+        if (emptyEl) emptyEl.style.display = count === 0 ? "block" : "";
+
+        btns.forEach(function (btn) {
+          var active = btn.getAttribute("data-person-filter-value") === value;
+          btn.classList.toggle("is-active", active);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+
+        if (select) select.value = value;
+
+        statusEl.textContent = count + (count === 1 ? " Experte" : " Experten") + " angezeigt";
+      }
+
+      function refresh() {
+        scanCards();
+        updateButtonStates();
+        applyFilter(currentValue);
+        updateSelectState();
+      }
+
+      function valueFromHash() {
+        var hash = location.hash.replace("#", "");
+        if (!hash) return "all";
+        if (hash === HASH_NONE) return "none";
+        if (hash.indexOf(HASH_PREFIX) !== 0) return "all";
+        var key = hash.slice(HASH_PREFIX.length);
+        /* Button suchen, dessen erster Key mit dem Hash übereinstimmt */
+        for (var i = 0; i < btns.length; i++) {
+          var val = (btns[i].getAttribute("data-person-filter-value") || "").trim();
+          if (val === key || val.split(/\s+/)[0] === key) return val;
+        }
+        return "all";
+      }
+
+      function pushHash(value) {
+        var target = "";
+        if (value === "none") {
+          target = "#" + HASH_NONE;
+        } else if (value !== "all") {
+          target = "#" + HASH_PREFIX + value.split(/\s+/)[0];
+        }
+        if (history.replaceState) {
+          history.replaceState(null, "", target || location.pathname + location.search);
+        }
+      }
+
+      /* ---- Natives <select> für Mobil ---- */
+      var selectId = "experts-filter-select-" + listId;
+
+      function buildSelect() {
+        var existing = document.getElementById(selectId);
+        if (existing) { select = existing; return; } // idempotent
+
+        var label = document.createElement("label");
+        label.className = "experts-filter-label";
+        label.htmlFor = selectId;
+        label.textContent = "Bereich";
+
+        select = document.createElement("select");
+        select.className = "experts-filter-select";
+        select.id = selectId;
+
+        btns.forEach(function (btn) {
+          var opt    = document.createElement("option");
+          var textEl = btn.querySelector(".glossary-btn-text");
+          opt.textContent = (textEl ? textEl.textContent : btn.textContent).trim();
+          opt.value  = btn.getAttribute("data-person-filter-value");
+          select.appendChild(opt);
+        });
+
+        select.addEventListener("change", function () {
+          applyFilter(select.value);
+          pushHash(select.value);
+        });
+
+        /* label dann select – DOM-Reihenfolge: nav | label | select */
+        nav.insertAdjacentElement("afterend", select);
+        nav.insertAdjacentElement("afterend", label);
+      }
+
+      /* ---- Event-Handler ---- */
+      nav.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-person-filter-value]");
+        if (!btn || btn.disabled) return;
+        var value = btn.getAttribute("data-person-filter-value");
+        applyFilter(value);
+        pushHash(value);
+      });
+
+      window.addEventListener("hashchange", function () {
+        applyFilter(valueFromHash());
+      });
+
+      nav._oedivRefresh = refresh;
+
+      /* ---- Startzustand ---- */
+      scanCards();
+      buildSelect();
+      updateButtonStates();
+      currentValue = valueFromHash();
+      applyFilter(currentValue);
+      updateSelectState();
+    });
+  });
+})();
+
+/* =========================================================
    CMS-Nachladen – zentraler oediv:content-loaded Listener
    Das CMS löst auf dem Listen-Container aus:
      new CustomEvent("oediv:content-loaded", {
@@ -5124,10 +5349,12 @@ function onReady(fn){
       );
     }
 
-    /* Experten-Filter (nav[data-person-filter]) – gleiche Logik, sobald Modul vorhanden */
-    Array.prototype.forEach.call(
-      document.querySelectorAll("nav[data-person-filter]"),
-      function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
-    );
+    /* Experten-Filter: Nav(s) neu scannen, die auf diesen Container zeigen */
+    if (listId) {
+      Array.prototype.forEach.call(
+        document.querySelectorAll('nav[data-person-filter="' + listId + '"]'),
+        function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
+      );
+    }
   });
 })();
