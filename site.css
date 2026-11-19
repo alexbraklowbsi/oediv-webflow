@@ -974,3 +974,27 @@ a.data-insight-toc-list-text:focus-visible {
 .hs-consent-text { max-width: 40rem; margin: 0; }
 .hs-consent-text a { text-decoration: underline; }
 .hs-form-frame:focus { outline: none; }
+
+/* =========================================================
+   Glossar A–Z: leere Buchstaben + mobil wischbar
+   ========================================================= */
+
+/* Leere Buchstaben */
+.glossary-btn.is-disabled,
+.glossary-btn[disabled] { opacity: .35; cursor: default; pointer-events: none; }
+
+/* Mobil: eine wischbare Zeile, nur Buchstaben mit Begriffen */
+@media (max-width: 767px) {
+  .glossary-az {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    margin-right: -20px;
+    padding-right: 20px;
+  }
+  .glossary-az::-webkit-scrollbar { display: none; }
+  .glossary-btn { flex-shrink: 0; scroll-snap-align: start; }
+  .glossary-btn.is-disabled,
+  .glossary-btn[disabled] { display: none; }
+}
