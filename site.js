@@ -741,142 +741,141 @@ function onReady(fn){
    - Screenreader lesen nur den Endwert; prefers-reduced-motion -> sofort Endwert
    ========================================================= */
 (function () {
-  onReady(function () {
-    "use strict";
+  "use strict";
 
-    var els = Array.prototype.slice.call(document.querySelectorAll("[counter-data]"));
+  var DEFAULT_DURATION = 1600;
+  var SCRAMBLE_TICK = 50;
+  var UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  var LOWER = "abcdefghijklmnopqrstuvwxyz";
+  var DIGITS = "0123456789";
+  var reduceMotion = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- Parsing ---------- */
+  var NUM_RE = /(^|[^0-9A-Za-zÄÖÜäöüß])(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?)/;
+
+  function parse(raw) {
+    var m = raw.match(NUM_RE);
+    if (!m) return { prefix: raw, suffix: "", value: null };
+    var num = m[2];
+    var start = m.index + m[1].length;
+    return {
+      prefix: raw.slice(0, start),
+      suffix: raw.slice(start + num.length),
+      value: parseFloat(num.replace(/\./g, "").replace(",", ".")),
+      decimals: num.indexOf(",") !== -1 ? num.split(",")[1].length : 0,
+      grouped: num.indexOf(".") !== -1
+    };
+  }
+
+  function formatNumber(v, p) {
+    return v.toLocaleString("de-DE", {
+      minimumFractionDigits: p.decimals,
+      maximumFractionDigits: p.decimals,
+      useGrouping: p.grouped
+    });
+  }
+
+  /* ---------- Text-Effekte ---------- */
+  function randomLike(ch) {
+    var set = /[0-9]/.test(ch) ? DIGITS :
+      /[A-ZÄÖÜ]/.test(ch) ? UPPER :
+      /[a-zäöüß]/.test(ch) ? LOWER : null;
+    return set ? set.charAt(Math.floor(Math.random() * set.length)) : ch;
+  }
+
+  function textFrame(text, offset, revealed, effect) {
+    var out = "";
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      if (offset + i < revealed || /\s/.test(ch)) out += ch;
+      else if (effect !== "type") out += randomLike(ch);
+    }
+    return out;
+  }
+
+  /* ---------- Setup (idempotent: überspringt bereits initialisierte Elemente) ---------- */
+  function prepare(el) {
+    if (el.classList.contains("is-counter-ready")) return null;
+    var raw = (el.getAttribute("counter-data") || "").replace(/\s+/g, " ").trim();
+    if (!raw) return null;
+
+    var final = document.createElement("span");
+    final.className = "counter-final";
+    final.textContent = raw;
+    el.textContent = "";
+    el.appendChild(final);
+
+    if (reduceMotion) {
+      el.classList.add("is-counter-ready", "is-counter-done");
+      return null;
+    }
+
+    var anim = document.createElement("span");
+    anim.className = "counter-anim";
+    anim.setAttribute("aria-hidden", "true");
+    el.appendChild(anim);
+    el.classList.add("is-counter-ready");
+
+    var state = {
+      el: el,
+      anim: anim,
+      raw: raw,
+      parts: parse(raw),
+      effect: el.getAttribute("counter-effect") || "scramble",
+      duration: parseInt(el.getAttribute("counter-duration"), 10) || DEFAULT_DURATION,
+      lastTick: -1,
+      lastRevealed: -1,
+      cache: ["", ""]
+    };
+    render(state, 0, 0);
+    return state;
+  }
+
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function render(s, progress, elapsed) {
+    var p = s.parts;
+    var textLen = p.prefix.length + p.suffix.length;
+    var revealed = Math.floor(progress * textLen);
+    var tick = Math.floor(elapsed / SCRAMBLE_TICK);
+    if (tick !== s.lastTick || revealed !== s.lastRevealed) {
+      s.lastTick = tick;
+      s.lastRevealed = revealed;
+      s.cache = [
+        textFrame(p.prefix, 0, revealed, s.effect),
+        textFrame(p.suffix, p.prefix.length, revealed, s.effect)
+      ];
+    }
+    var numOut = p.value === null ? "" : formatNumber(p.value * progress, p);
+    s.anim.textContent = s.cache[0] + numOut + s.cache[1];
+  }
+
+  function run(s) {
+    var start = null;
+    function frame(now) {
+      if (start === null) start = now;
+      var elapsed = now - start;
+      var t = Math.min(elapsed / s.duration, 1);
+      render(s, easeOutCubic(t), elapsed);
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        s.anim.parentNode.removeChild(s.anim);
+        s.el.classList.add("is-counter-done");
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- Initialisierung für einen optionalen scope ---------- */
+  function initCounters(scope) {
+    var root = scope || document;
+    var els = Array.prototype.filter.call(
+      root.querySelectorAll("[counter-data]"),
+      function (el) { return !el.classList.contains("is-counter-ready"); }
+    );
     if (!els.length) return;
-
-    var DEFAULT_DURATION = 1600;
-    var SCRAMBLE_TICK = 50; // ms zwischen Zufallswechseln
-    var UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    var LOWER = "abcdefghijklmnopqrstuvwxyz";
-    var DIGITS = "0123456789";
-    var reduceMotion = window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    /* ---------- Parsing ---------- */
-    // Zahl nur am Wortanfang (nicht "365" in "M365")
-    var NUM_RE = /(^|[^0-9A-Za-zÄÖÜäöüß])(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?)/;
-
-    function parse(raw) {
-      var m = raw.match(NUM_RE);
-      if (!m) return { prefix: raw, suffix: "", value: null };
-
-      var num = m[2];
-      var start = m.index + m[1].length;
-      return {
-        prefix: raw.slice(0, start),
-        suffix: raw.slice(start + num.length),
-        value: parseFloat(num.replace(/\./g, "").replace(",", ".")),
-        decimals: num.indexOf(",") !== -1 ? num.split(",")[1].length : 0,
-        grouped: num.indexOf(".") !== -1
-      };
-    }
-
-    function formatNumber(v, p) {
-      return v.toLocaleString("de-DE", {
-        minimumFractionDigits: p.decimals,
-        maximumFractionDigits: p.decimals,
-        useGrouping: p.grouped
-      });
-    }
-
-    /* ---------- Text-Effekte ---------- */
-    function randomLike(ch) {
-      var set = /[0-9]/.test(ch) ? DIGITS :
-        /[A-ZÄÖÜ]/.test(ch) ? UPPER :
-        /[a-zäöüß]/.test(ch) ? LOWER : null;
-      return set ? set.charAt(Math.floor(Math.random() * set.length)) : ch;
-    }
-
-    // revealed = Anzahl bereits fertiger Zeichen (über prefix + suffix gezählt)
-    function textFrame(text, offset, revealed, effect) {
-      var out = "";
-      for (var i = 0; i < text.length; i++) {
-        var ch = text.charAt(i);
-        if (offset + i < revealed || /\s/.test(ch)) out += ch;
-        else if (effect !== "type") out += randomLike(ch);
-      }
-      return out;
-    }
-
-    /* ---------- Setup ---------- */
-    function prepare(el) {
-      var raw = (el.getAttribute("counter-data") || "").replace(/\s+/g, " ").trim();
-      if (!raw) return null;
-
-      var final = document.createElement("span");
-      final.className = "counter-final";
-      final.textContent = raw;
-
-      el.textContent = "";
-      el.appendChild(final);
-
-      if (reduceMotion) {
-        el.classList.add("is-counter-ready", "is-counter-done");
-        return null;
-      }
-
-      var anim = document.createElement("span");
-      anim.className = "counter-anim";
-      anim.setAttribute("aria-hidden", "true");
-      el.appendChild(anim);
-      el.classList.add("is-counter-ready");
-
-      var state = {
-        el: el,
-        anim: anim,
-        raw: raw,
-        parts: parse(raw),
-        effect: el.getAttribute("counter-effect") || "scramble",
-        duration: parseInt(el.getAttribute("counter-duration"), 10) || DEFAULT_DURATION,
-        lastTick: -1,
-        lastRevealed: -1,
-        cache: ["", ""]
-      };
-      render(state, 0, 0);
-      return state;
-    }
-
-    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-
-    function render(s, progress, elapsed) {
-      var p = s.parts;
-      var textLen = p.prefix.length + p.suffix.length;
-      var revealed = Math.floor(progress * textLen);
-      var tick = Math.floor(elapsed / SCRAMBLE_TICK);
-
-      // Zufallszeichen nur alle SCRAMBLE_TICK ms neu würfeln
-      if (tick !== s.lastTick || revealed !== s.lastRevealed) {
-        s.lastTick = tick;
-        s.lastRevealed = revealed;
-        s.cache = [
-          textFrame(p.prefix, 0, revealed, s.effect),
-          textFrame(p.suffix, p.prefix.length, revealed, s.effect)
-        ];
-      }
-
-      var numOut = p.value === null ? "" : formatNumber(p.value * progress, p);
-      s.anim.textContent = s.cache[0] + numOut + s.cache[1];
-    }
-
-    function run(s) {
-      var start = null;
-      function frame(now) {
-        if (start === null) start = now;
-        var elapsed = now - start;
-        var t = Math.min(elapsed / s.duration, 1);
-        render(s, easeOutCubic(t), elapsed);
-        if (t < 1) {
-          requestAnimationFrame(frame);
-        } else {
-          s.anim.parentNode.removeChild(s.anim);
-          s.el.classList.add("is-counter-done");
-        }
-      }
-      requestAnimationFrame(frame);
-    }
 
     var states = els.map(prepare).filter(Boolean);
     if (!states.length) return;
@@ -895,7 +894,12 @@ function onReady(fn){
     }, { threshold: 0.5 });
 
     states.forEach(function (s) { io.observe(s.el); });
-  });
+  }
+
+  window._oediv = window._oediv || {};
+  window._oediv.initCounters = initCounters;
+
+  onReady(function () { initCounters(document); });
 })();
 
 (function () {
@@ -932,7 +936,7 @@ function onReady(fn){
       const sliderContainer = slider.closest(".udesly-container.is-slider");
       const viewport = slider.querySelector(".std-slider-viewport");
       const track = slider.querySelector(".std-slider-track");
-      const slides = Array.from(slider.querySelectorAll(".std-slider-slide"));
+      let slides = Array.from(slider.querySelectorAll(".std-slider-slide"));
       const prev = slider.querySelector("[data-slider-prev]");
       const next = slider.querySelector("[data-slider-next]");
 
@@ -1680,6 +1684,19 @@ function onReady(fn){
         restartAutoSlide();
       });
 
+      /* Neue Karten nachgeladen: Slides neu zählen + Layout neu berechnen */
+      function refreshSlider() {
+        slides = Array.from(slider.querySelectorAll(".std-slider-slide"));
+        slides.forEach(function (slide) {
+          slide.querySelectorAll("img").forEach(function (image) {
+            image.setAttribute("draggable", "false");
+            image.style.webkitUserDrag = "none";
+          });
+        });
+        layoutSlider();
+      }
+
+      slider._oedivRefresh = refreshSlider;
       layoutSlider();
     });
   });
@@ -4781,90 +4798,6 @@ function onReady(fn){
 })();
 
 /* =========================================================
-   Artikel teilen – News-Detail + Insight-Detail
-   - Buttons: [data-share], [data-newsdetail-action="share"], [data-blogarticle-action="share"]
-   - Mobil: natives Teilen (navigator.share); Desktop: Link kopieren + Feedback
-   - Titel: h1 [data-*-field="title"] > h1 > document.title
-   - keine Drittanbieter-Scripts (DSGVO)
-   ========================================================= */
-(function () {
-  onReady(function () {
-    "use strict";
-
-    var SELECTOR = '[data-share], [data-newsdetail-action="share"], [data-blogarticle-action="share"]';
-    var COPIED = "Link kopiert";
-    var RESET_MS = 2000;
-
-    var live = document.createElement("p");
-    live.className = "share-status";
-    live.setAttribute("aria-live", "polite");
-    document.body.appendChild(live);
-
-    function pageTitle() {
-      var h = document.querySelector('h1[data-newsdetail-field="title"], h1[data-insight-field="title"]') ||
-        document.querySelector("h1");
-      return (h ? h.textContent : document.title).replace(/\s+/g, " ").trim();
-    }
-
-    function pageUrl() {
-      var c = document.querySelector('link[rel="canonical"]');
-      return (c && c.href) || location.href.split("#")[0];
-    }
-
-    function copy(text) {
-      if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text);
-      }
-      return new Promise(function (resolve, reject) {
-        var ta = document.createElement("textarea");
-        ta.value = text;
-        ta.setAttribute("readonly", "");
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        var ok = false;
-        try { ok = document.execCommand("copy"); } catch (e) {}
-        document.body.removeChild(ta);
-        ok ? resolve() : reject();
-      });
-    }
-
-    function feedback(btn, text) {
-      var label = btn.querySelector(".btn-text-span") || btn;
-      if (!btn.hasAttribute("data-share-label")) {
-        btn.setAttribute("data-share-label", label.textContent);
-      }
-      label.textContent = text;
-      live.textContent = text;
-      clearTimeout(btn._shareTimer);
-      btn._shareTimer = setTimeout(function () {
-        label.textContent = btn.getAttribute("data-share-label");
-        live.textContent = "";
-      }, RESET_MS);
-    }
-
-    document.addEventListener("click", function (e) {
-      var btn = e.target.closest(SELECTOR);
-      if (!btn) return;
-      e.preventDefault();
-
-      var data = { title: pageTitle(), url: pageUrl() };
-
-      if (navigator.share && (!navigator.canShare || navigator.canShare(data))) {
-        navigator.share(data).catch(function () { /* Abbruch durch Nutzer: nichts tun */ });
-        return;
-      }
-
-      copy(data.url).then(
-        function () { feedback(btn, COPIED); },
-        function () { window.prompt("Link kopieren:", data.url); }
-      );
-    });
-  });
-})();
-
-/* =========================================================
    HubSpot-Formulare – Klick-Einwilligung (DSGVO)
    - Webflow-Embed enthält NUR:
      <div class="hs-form-frame" data-region="eu1" data-form-id="…" data-portal-id="…"></div>
@@ -4979,6 +4912,7 @@ function onReady(fn){
    CSS-Klassen (Webflow): .is-active, .is-disabled
    Hash: #glossar-<buchstabe-klein> bzw. kein Hash für "all"
    Mehrere Filter-Navs pro Seite werden unterstützt.
+   nav._oedivRefresh() – nach CMS-Nachladen aufrufen.
    ========================================================= */
 (function () {
   onReady(function () {
@@ -4986,7 +4920,6 @@ function onReady(fn){
 
     var HASH_PREFIX = "glossar-";
 
-    /* Ä/Ö/Ü auf A/O/U abbilden, alles andere normaliserern */
     function initialOf(term) {
       var ch = term.trim().charAt(0).toUpperCase();
       if (ch === "\xC4") return "A"; // Ä
@@ -5002,40 +4935,49 @@ function onReady(fn){
     if (!navs.length) return;
 
     navs.forEach(function (nav) {
+      if (nav.dataset.glossaryInit) return; // idempotent
+      nav.dataset.glossaryInit = "1";
+
       var listId = nav.getAttribute("data-glossary-filter");
       var list = document.getElementById(listId);
       if (!list) return;
 
-      var cards = Array.prototype.slice.call(
-        list.querySelectorAll('[data-cms-component="glossary-card"]')
-      );
       var empty = list.querySelector("[data-glossary-empty]");
       var btns = Array.prototype.slice.call(
         nav.querySelectorAll("button[data-glossary-letter]")
       );
-
-      /* Schritt 1: Anfangsbuchstaben an Karten heften */
+      var cards = [];
       var usedLetters = {};
-      cards.forEach(function (card) {
-        var termEl = card.querySelector('[data-glossaryteaser-field="term"]');
-        var initial = termEl ? initialOf(termEl.textContent) : "#";
-        card.setAttribute("data-glossary-initial", initial);
-        usedLetters[initial] = true;
-      });
+      var currentLetter = "all";
 
-      /* Schritt 2: Buttons ohne Treffer deaktivieren */
-      btns.forEach(function (btn) {
-        var letter = btn.getAttribute("data-glossary-letter");
-        if (letter === "all") return;
-        if (!usedLetters[letter]) {
-          btn.classList.add("is-disabled");
-          btn.disabled = true;
-          btn.setAttribute("aria-disabled", "true");
-        }
-      });
+      /* Karten neu scannen + Buttons aktualisieren (bei CMS-Nachladen wiederholbar) */
+      function refresh() {
+        cards = Array.prototype.slice.call(
+          list.querySelectorAll('[data-cms-component="glossary-card"]')
+        );
+        usedLetters = {};
+        cards.forEach(function (card) {
+          var termEl = card.querySelector('[data-glossaryteaser-field="term"]');
+          var initial = termEl ? initialOf(termEl.textContent) : "#";
+          card.setAttribute("data-glossary-initial", initial);
+          usedLetters[initial] = true;
+        });
 
-      /* Schritt 3–4: Filter anwenden */
+        btns.forEach(function (btn) {
+          var letter = btn.getAttribute("data-glossary-letter");
+          if (letter === "all") return;
+          var empty = !usedLetters[letter];
+          btn.classList.toggle("is-disabled", empty);
+          btn.disabled = empty;
+          if (empty) btn.setAttribute("aria-disabled", "true");
+          else btn.removeAttribute("aria-disabled");
+        });
+
+        applyFilter(currentLetter);
+      }
+
       function applyFilter(letter) {
+        currentLetter = letter;
         var showAll = (letter === "all");
         var anyVisible = false;
 
@@ -5054,7 +4996,6 @@ function onReady(fn){
         });
       }
 
-      /* Schritt 5: Hash lesen / schreiben */
       function letterFromHash() {
         var hash = location.hash.replace("#", "");
         if (!hash || hash.indexOf(HASH_PREFIX) !== 0) return "all";
@@ -5070,7 +5011,7 @@ function onReady(fn){
         }
       }
 
-      /* Klick-Handler */
+      /* Klick-Handler – einmalig binden */
       nav.addEventListener("click", function (e) {
         var btn = e.target.closest("button[data-glossary-letter]");
         if (!btn || btn.disabled) return;
@@ -5079,8 +5020,56 @@ function onReady(fn){
         pushHash(letter);
       });
 
-      /* Schritt 6: Startzustand */
-      applyFilter(letterFromHash());
+      nav._oedivRefresh = refresh;
+
+      /* Startzustand */
+      currentLetter = letterFromHash();
+      refresh();
     });
+  });
+})();
+
+/* =========================================================
+   CMS-Nachladen – zentraler oediv:content-loaded Listener
+   Das CMS löst auf dem Listen-Container aus:
+     new CustomEvent("oediv:content-loaded", {
+       bubbles: true,
+       detail: { type: "experts" | "glossary" | … }
+     })
+   Hier werden Slider, Counter und Filter für den betroffenen
+   Container neu initialisiert (alle Ops idempotent).
+   ========================================================= */
+(function () {
+  "use strict";
+
+  document.addEventListener("oediv:content-loaded", function (e) {
+    var container = e.target;
+    if (!container || container.nodeType !== 1) return;
+
+    /* Slider: layoutSlider() + neue Slides registrieren */
+    var sliderEl = container.closest(".std-slider");
+    if (sliderEl && sliderEl._oedivRefresh) {
+      sliderEl._oedivRefresh();
+    }
+
+    /* Counter: neue [counter-data]-Elemente starten */
+    if (window._oediv && window._oediv.initCounters) {
+      window._oediv.initCounters(container);
+    }
+
+    /* Glossar-Filter: Nav(s) neu scannen, die auf diesen Container zeigen */
+    var listId = container.id;
+    if (listId) {
+      Array.prototype.forEach.call(
+        document.querySelectorAll('nav[data-glossary-filter="' + listId + '"]'),
+        function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
+      );
+    }
+
+    /* Experten-Filter (nav[data-person-filter]) – gleiche Logik, sobald Modul vorhanden */
+    Array.prototype.forEach.call(
+      document.querySelectorAll("nav[data-person-filter]"),
+      function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
+    );
   });
 })();
