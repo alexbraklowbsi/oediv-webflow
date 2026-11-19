@@ -5130,12 +5130,12 @@ function onReady(fn){
       var currentValue = "all";
       var select  = null;
 
-      /* Screenreader-Statusmeldung (visuell versteckt, aria-live) */
+      /* Screenreader-Statusmeldung – NACH dem nav, nicht darin (nav ist Flex-Zeile) */
       var statusEl = document.createElement("span");
       statusEl.setAttribute("aria-live", "polite");
       statusEl.setAttribute("aria-atomic", "true");
-      statusEl.className = "experts-filter-status";
-      nav.appendChild(statusEl);
+      statusEl.className = "sr-only";
+      nav.insertAdjacentElement("afterend", statusEl);
 
       /* ---- Hilfsfunktionen ---- */
       function areasOf(card) {
