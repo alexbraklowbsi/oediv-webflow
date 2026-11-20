@@ -1083,3 +1083,55 @@ main:focus { outline: none; }
     outline-offset: 2px;
   }
 }
+
+/* =========================================================
+   AVV-Download – Suche + mobiler Umschalter
+   ========================================================= */
+
+.avv-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 40px;
+}
+.avv-search-wrapper {
+  flex: 1 1 320px;
+  max-width: 480px;
+}
+.avv-search {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 20px;
+  font: inherit;
+  font-size: 16px;
+  background: #fff;
+  border: 1px solid var(--oediv-blau-40, #d9dde3);
+  border-radius: 8px;
+}
+.avv-search:focus,
+.avv-search:focus-visible {
+  outline: 2px solid var(--neon-blau);
+  outline-offset: 2px;
+}
+
+/* Umschalter: nur auf Mobil sichtbar */
+.avv-switch { display: none; }
+@media (max-width: 991px) {
+  .avv-switch { display: flex; gap: 8px; }
+}
+
+/* Spalten: Umschalter-Logik nur wenn JS aktiv (html.avv-js) */
+@media (max-width: 991px) {
+  html.avv-js [data-avv-col]          { display: none; }
+  html.avv-js [data-avv-col].is-active { display: block; }
+}
+
+/* Desktop: Produkte-Spalte sticky */
+@media (min-width: 992px) {
+  [data-avv-col="produkte"] {
+    position: sticky;
+    top: calc(var(--nav-height, 80px) + 24px);
+    align-self: start;
+  }
+}

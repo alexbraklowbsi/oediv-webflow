@@ -5313,6 +5313,128 @@ function onReady(fn){
 })();
 
 /* =========================================================
+   AVV-Download – Suche + mobiler Spalten-Umschalter
+   Markup-Vertrag:
+   - input[data-avv-search]
+   - [data-avv-switch] > button[data-avv-switch-value="services"|"produkte"]
+   - [data-avv-status]  (Klasse sr-only, schon im HTML)
+   - [data-avv-col="services"|"produkte"]  (Spalten-Wrapper)
+       #avv-services / #avv-produkte  (Listen)
+         .avv-article (Zeilen, direkte Kinder ohne .w-embed)
+           [data-avvteaser-field="title"]
+           [data-avvteaser-field="former-names"]
+       [data-avv-empty]  (Leerzustand pro Spalte)
+   html.avv-js  = per JS gesetzt; CSS nutzt diese Klasse für Umschalter-Logik
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+
+    var input = document.querySelector("input[data-avv-search]");
+    if (!input) return;
+
+    /* idempotent + CSS-Scope */
+    var html = document.documentElement;
+    if (html.classList.contains("avv-js")) return;
+    html.classList.add("avv-js");
+
+    var switchEl = document.querySelector("[data-avv-switch]");
+    var statusEl = document.querySelector("[data-avv-status]");
+
+    var colEls  = {
+      services: document.querySelector('[data-avv-col="services"]'),
+      produkte:  document.querySelector('[data-avv-col="produkte"]')
+    };
+    var listEls = {
+      services: document.getElementById("avv-services"),
+      produkte:  document.getElementById("avv-produkte")
+    };
+
+    /* ---- Hilfsfunktionen ---- */
+    function getRows(list) {
+      if (!list) return [];
+      return Array.prototype.filter.call(list.children, function (el) {
+        return !el.classList.contains("w-embed");
+      });
+    }
+
+    function normalize(s) {
+      return (s || "").toLowerCase()
+        .replace(/ä/g, "ae").replace(/ö/g, "oe")
+        .replace(/ü/g, "ue").replace(/ß/g, "ss");
+    }
+
+    function rowText(row) {
+      var t = row.querySelector('[data-avvteaser-field="title"]');
+      var f = row.querySelector('[data-avvteaser-field="former-names"]');
+      return normalize((t ? t.textContent : "") + " " + (f ? f.textContent : ""));
+    }
+
+    /* ---- Suche ---- */
+    function applySearch() {
+      var q = normalize(input.value);
+      var total = 0;
+
+      ["services", "produkte"].forEach(function (key) {
+        var rows  = getRows(listEls[key]);
+        var col   = colEls[key];
+        var empty = col && col.querySelector("[data-avv-empty]");
+        var count = 0;
+
+        rows.forEach(function (row) {
+          var match = !q || rowText(row).indexOf(q) !== -1;
+          row.style.display = match ? "" : "none";
+          if (match) count++;
+        });
+
+        if (empty) empty.style.display = count === 0 ? "block" : "";
+        total += count;
+      });
+
+      if (statusEl) {
+        statusEl.textContent = total + (total === 1 ? " Eintrag" : " Einträge") + " gefunden";
+      }
+    }
+
+    input.addEventListener("input", applySearch);
+
+    /* ---- Umschalter ---- */
+    if (switchEl) {
+      var switchBtns = Array.prototype.slice.call(
+        switchEl.querySelectorAll("button[data-avv-switch-value]")
+      );
+
+      function activateSwitch(value) {
+        switchBtns.forEach(function (btn) {
+          var active = btn.getAttribute("data-avv-switch-value") === value;
+          btn.classList.toggle("is-active", active);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        ["services", "produkte"].forEach(function (key) {
+          if (colEls[key]) colEls[key].classList.toggle("is-active", key === value);
+        });
+      }
+
+      switchEl.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-avv-switch-value]");
+        if (!btn) return;
+        activateSwitch(btn.getAttribute("data-avv-switch-value"));
+      });
+
+      activateSwitch("services"); // Startzustand
+    }
+
+    /* ---- CMS-Nachladen ---- */
+    document.addEventListener("oediv:content-loaded", function (e) {
+      var t = e.target;
+      if (t === listEls.services || t === listEls.produkte) applySearch();
+    });
+
+    applySearch(); // Startzustand
+  });
+})();
+
+/* =========================================================
    CMS-Nachladen – zentraler oediv:content-loaded Listener
    Das CMS löst auf dem Listen-Container aus:
      new CustomEvent("oediv:content-loaded", {
