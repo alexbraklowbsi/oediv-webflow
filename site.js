@@ -5472,9 +5472,8 @@ function onReady(fn){
         btn.textContent = p.textContent.trim();
 
         var icon = document.createElement("span");
-        icon.className = "g-material-icon-text";
+        icon.className = "avv-past-toggle-icon";
         icon.setAttribute("aria-hidden", "true");
-        icon.textContent = "keyboard_arrow_down";
         btn.appendChild(icon);
 
         p.textContent = "";

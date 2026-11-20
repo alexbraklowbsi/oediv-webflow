@@ -1223,16 +1223,18 @@ p.details-old-version {
   color: var(--oediv-blau);
   cursor: pointer;
 }
-.avv-past-toggle .g-material-icon-text {
-  font-size: 20px;
-  line-height: 1;
+.avv-past-toggle-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5' fill='none' stroke='%23103a5d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 20px no-repeat;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .avv-past-toggle .g-material-icon-text {
+  .avv-past-toggle-icon {
     transition: transform .15s ease;
   }
 }
-.avv-past-toggle[aria-expanded="true"] .g-material-icon-text {
+.avv-past-toggle[aria-expanded="true"] .avv-past-toggle-icon {
   transform: rotate(180deg);
 }
 
