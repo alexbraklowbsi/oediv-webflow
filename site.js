@@ -5313,7 +5313,8 @@ function onReady(fn){
 })();
 
 /* =========================================================
-   AVV-Download – Suche + mobiler Spalten-Umschalter
+   AVV-Download – Suche + mobiler Spalten-Umschalter +
+   Frühere-Versionen Akkordeon
    Markup-Vertrag:
    - input[data-avv-search]
    - [data-avv-switch] > button[data-avv-switch-value="services"|"produkte"]
@@ -5323,6 +5324,8 @@ function onReady(fn){
          .avv-article (Zeilen, direkte Kinder ohne .w-embed)
            [data-avvteaser-field="title"]
            [data-avvteaser-field="former-names"]
+           p.details-old-version[data-avvteaser-if="past-versions"]
+           [data-cms-component="avv-versions-past"]
        [data-avv-empty]  (Leerzustand pro Spalte)
    html.avv-js  = per JS gesetzt; CSS nutzt diese Klasse für Umschalter-Logik
    ========================================================= */
@@ -5370,10 +5373,39 @@ function onReady(fn){
       return normalize((t ? t.textContent : "") + " " + (f ? f.textContent : ""));
     }
 
+    /* ---- Umschalter (vor applySearch definieren, damit Auto-Switch möglich) ---- */
+    var switchBtns = [];
+    var activateSwitch = function () {};
+
+    if (switchEl) {
+      switchBtns = Array.prototype.slice.call(
+        switchEl.querySelectorAll("button[data-avv-switch-value]")
+      );
+
+      activateSwitch = function (value) {
+        switchBtns.forEach(function (btn) {
+          var active = btn.getAttribute("data-avv-switch-value") === value;
+          btn.classList.toggle("is-active", active);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+        ["services", "produkte"].forEach(function (key) {
+          if (colEls[key]) colEls[key].classList.toggle("is-active", key === value);
+        });
+      };
+
+      switchEl.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-avv-switch-value]");
+        if (!btn) return;
+        activateSwitch(btn.getAttribute("data-avv-switch-value"));
+      });
+
+      activateSwitch("services"); // Startzustand
+    }
+
     /* ---- Suche ---- */
     function applySearch() {
       var q = normalize(input.value);
-      var total = 0;
+      var counts = { services: 0, produkte: 0 };
 
       ["services", "produkte"].forEach(function (key) {
         var rows  = getRows(listEls[key]);
@@ -5387,49 +5419,87 @@ function onReady(fn){
           if (match) count++;
         });
 
+        counts[key] = count;
         if (empty) empty.style.display = count === 0 ? "block" : "";
-        total += count;
       });
 
+      var total = counts.services + counts.produkte;
       if (statusEl) {
         statusEl.textContent = total + (total === 1 ? " Eintrag" : " Einträge") + " gefunden";
+      }
+
+      /* Auto-Switch auf Mobil: aktive Spalte leer, andere hat Treffer */
+      if (switchEl && q && window.innerWidth < 992) {
+        var activeKey = null;
+        ["services", "produkte"].forEach(function (k) {
+          if (colEls[k] && colEls[k].classList.contains("is-active")) activeKey = k;
+        });
+        if (activeKey) {
+          var otherKey = activeKey === "services" ? "produkte" : "services";
+          if (counts[activeKey] === 0 && counts[otherKey] > 0) {
+            activateSwitch(otherKey);
+          }
+        }
       }
     }
 
     input.addEventListener("input", applySearch);
 
-    /* ---- Umschalter ---- */
-    if (switchEl) {
-      var switchBtns = Array.prototype.slice.call(
-        switchEl.querySelectorAll("button[data-avv-switch-value]")
+    /* ---- Frühere-Versionen Akkordeon ---- */
+    var pastIdCounter = 0;
+
+    function initPastVersionToggles(scope) {
+      var articles = Array.prototype.slice.call(
+        (scope || document).querySelectorAll(".avv-article")
       );
+      articles.forEach(function (article) {
+        var p = article.querySelector(
+          'p.details-old-version[data-avvteaser-if="past-versions"]'
+        );
+        if (!p) return;
+        if (p.querySelector("button.avv-past-toggle")) return; // idempotent
 
-      function activateSwitch(value) {
-        switchBtns.forEach(function (btn) {
-          var active = btn.getAttribute("data-avv-switch-value") === value;
-          btn.classList.toggle("is-active", active);
-          btn.setAttribute("aria-pressed", active ? "true" : "false");
-        });
-        ["services", "produkte"].forEach(function (key) {
-          if (colEls[key]) colEls[key].classList.toggle("is-active", key === value);
-        });
-      }
+        var list = p.nextElementSibling;
+        if (!list || list.getAttribute("data-cms-component") !== "avv-versions-past") return;
 
-      switchEl.addEventListener("click", function (e) {
-        var btn = e.target.closest("button[data-avv-switch-value]");
-        if (!btn) return;
-        activateSwitch(btn.getAttribute("data-avv-switch-value"));
+        if (!list.id) list.id = "avv-past-" + (++pastIdCounter);
+
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "avv-past-toggle";
+        btn.setAttribute("aria-expanded", "false");
+        btn.setAttribute("aria-controls", list.id);
+        btn.textContent = p.textContent.trim();
+
+        var icon = document.createElement("span");
+        icon.className = "g-material-icon-text";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "keyboard_arrow_down";
+        btn.appendChild(icon);
+
+        p.textContent = "";
+        p.appendChild(btn);
+
+        list.hidden = true;
+
+        btn.addEventListener("click", function () {
+          var expanded = btn.getAttribute("aria-expanded") === "true";
+          btn.setAttribute("aria-expanded", String(!expanded));
+          list.hidden = expanded;
+        });
       });
-
-      activateSwitch("services"); // Startzustand
     }
 
     /* ---- CMS-Nachladen ---- */
     document.addEventListener("oediv:content-loaded", function (e) {
       var t = e.target;
-      if (t === listEls.services || t === listEls.produkte) applySearch();
+      if (t === listEls.services || t === listEls.produkte) {
+        initPastVersionToggles(t);
+        applySearch();
+      }
     });
 
+    initPastVersionToggles(document);
     applySearch(); // Startzustand
   });
 })();
