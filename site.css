@@ -973,7 +973,7 @@ a.data-insight-toc-list-text:focus-visible {
 }
 .hs-consent-text { max-width: 40rem; margin: 0; }
 .hs-consent-text a { text-decoration: underline; }
-.hs-form-frame:focus { outline: none; }
+.hs-form-frame:focus, .hs-form-html:focus { outline: none; }
 
 /* =========================================================
    Glossar A–Z: leere Buchstaben + mobil wischbar

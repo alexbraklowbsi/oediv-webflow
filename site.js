@@ -4857,11 +4857,14 @@ function onReady(fn){
 
 /* =========================================================
    HubSpot-Formulare – Klick-Einwilligung (DSGVO)
-   - Webflow-Embed enthält NUR:
+   - Klassisches Embed:
      <div class="hs-form-frame" data-region="eu1" data-form-id="…" data-portal-id="…"></div>
-     (KEIN <script src="…hsforms.net…">)
+     -> lädt /forms/embed/<portal>.js
+   - Developer-Embed:
+     <div class="hs-form-html" data-region="eu1" data-form-id="…" data-portal-id="…"></div>
+     -> lädt /forms/embed/developer/<portal>.js
+   - (KEIN <script src="…hsforms.net…"> im Webflow-Embed)
    - optional: data-hs-fallback="mail@domain.de" (alternative Kontaktmöglichkeit im Hinweis)
-   - lädt https://js-<region>.hsforms.net/forms/embed/<portal>.js erst nach Klick
    - Einwilligung gilt für die Sitzung (sessionStorage), dann alle Formulare direkt
    ========================================================= */
 (function () {
@@ -4872,7 +4875,7 @@ function onReady(fn){
     var STORAGE_KEY = "oediv-hubspot-consent";
 
     var frames = Array.prototype.slice.call(
-      document.querySelectorAll(".hs-form-frame[data-portal-id]")
+      document.querySelectorAll(".hs-form-frame[data-portal-id], .hs-form-html[data-portal-id]")
     );
     if (!frames.length) return;
 
@@ -4893,7 +4896,9 @@ function onReady(fn){
 
         var region = frame.getAttribute("data-region") || "eu1";
         var portal = frame.getAttribute("data-portal-id");
-        var src = "https://js-" + region + ".hsforms.net/forms/embed/" + portal + ".js";
+        var dev = frame.classList.contains("hs-form-html");
+        var src = "https://js-" + region + ".hsforms.net/forms/embed/" +
+          (dev ? "developer/" : "") + encodeURIComponent(portal.trim()) + ".js";
         if (loaded[src]) return;
         loaded[src] = true;
 
