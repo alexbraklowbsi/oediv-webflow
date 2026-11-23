@@ -5093,227 +5093,263 @@ function onReady(fn){
 })();
 
 /* =========================================================
-   Experten-Filter
-   Markup-Vertrag:
+   Karten-Filter (Experten + Blog-Insights) – generalisiert
+   Jede Konfiguration beschreibt einen Filtertyp:
+
+   Experten:
    - nav.experts-filter[data-person-filter="<list-id>"]
        button.glossary-btn[data-person-filter-value]
-         .glossary-btn-text (Button-Label)
-       Werte: "all" | "none" | "key1 key2 …" (Leerzeichen-getrennt)
-   - #<list-id> (Karten-Liste)
-       Direktkinder außer .w-embed = Karten
-         [data-person-area]  (Leerzeichen-getrennte Keys, kann fehlen)
-   - [data-person-empty] (Leerzustand, standard display:none per CSS)
-   - Mobil: label.experts-filter-label + select.experts-filter-select
-   - nav._oedivRefresh() – nach CMS-Nachladen aufrufen
-   Hash: #experten-<erster Key> | #experten-weitere | kein Hash
+     Karte: [data-person-area], Leerzustand: [data-person-empty]
+     Hash: #experten-<erster Key> | #experten-weitere
+
+   Blog-Insights:
+   - nav[data-insight-filter="<list-id>"]
+       button.glossary-btn[data-insight-filter-value]
+     Karte: [data-insight-area], Leerzustand: [data-insight-empty]
+     Hash: #beitraege-<erster Key> | #beitraege-weitere
+
+   Gemeinsam: Werte "all" | "none" | "key1 key2 …" (Leerzeichen-getrennt),
+   Hash-Zustand, mobiles select + Label (experts-filter-label/select),
+   sr-only-Status, is-active/aria-pressed, idempotent.
+   Karten = Direktkinder ohne .w-embed und ohne Leerzustand-Element.
+   nav._oedivRefresh() – nach CMS-Nachladen aufrufen.
    ========================================================= */
 (function () {
   onReady(function () {
     "use strict";
 
-    var HASH_PREFIX = "experten-";
-    var HASH_NONE   = "experten-weitere";
+    var FILTER_CONFIGS = [
+      {
+        navAttr:      "data-person-filter",
+        btnAttr:      "data-person-filter-value",
+        areaAttr:     "data-person-area",
+        emptyAttr:    "data-person-empty",
+        initKey:      "personFilterInit",
+        hashPrefix:   "experten-",
+        hashNone:     "experten-weitere",
+        selectPrefix: "experts-filter-select-",
+        singular:     " Experte",
+        plural:       " Experten"
+      },
+      {
+        navAttr:      "data-insight-filter",
+        btnAttr:      "data-insight-filter-value",
+        areaAttr:     "data-insight-area",
+        emptyAttr:    "data-insight-empty",
+        initKey:      "insightFilterInit",
+        hashPrefix:   "beitraege-",
+        hashNone:     "beitraege-weitere",
+        selectPrefix: "insight-filter-select-",
+        singular:     " Beitrag",
+        plural:       " Beiträge"
+      }
+    ];
 
-    var navs = Array.prototype.slice.call(
-      document.querySelectorAll("nav[data-person-filter]")
-    );
-    if (!navs.length) return;
-
-    navs.forEach(function (nav) {
-      if (nav.dataset.personFilterInit) return; // idempotent
-      nav.dataset.personFilterInit = "1";
-
-      var listId  = nav.getAttribute("data-person-filter");
-      var list    = document.getElementById(listId);
-      if (!list) return;
-
-      var btns    = Array.prototype.slice.call(
-        nav.querySelectorAll("button[data-person-filter-value]")
+    function initFilter(cfg) {
+      var navs = Array.prototype.slice.call(
+        document.querySelectorAll("nav[" + cfg.navAttr + "]")
       );
-      var emptyEl = list.querySelector("[data-person-empty]");
-      var cards   = [];
-      var currentValue = "all";
-      var select  = null;
 
-      /* Screenreader-Statusmeldung – NACH dem nav, nicht darin (nav ist Flex-Zeile) */
-      var statusEl = document.createElement("span");
-      statusEl.setAttribute("aria-live", "polite");
-      statusEl.setAttribute("aria-atomic", "true");
-      statusEl.className = "sr-only";
-      nav.insertAdjacentElement("afterend", statusEl);
+      navs.forEach(function (nav) {
+        if (nav.dataset[cfg.initKey]) return; // idempotent
+        nav.dataset[cfg.initKey] = "1";
 
-      /* ---- Hilfsfunktionen ---- */
-      function areasOf(card) {
-        var raw = (card.getAttribute("data-person-area") || "").trim();
-        return raw ? raw.split(/\s+/) : [];
-      }
+        var listId = nav.getAttribute(cfg.navAttr);
+        var list   = document.getElementById(listId);
+        if (!list) return;
 
-      function cardMatches(card, value) {
-        if (value === "all") return true;
-        var areas = areasOf(card);
-        if (value === "none") return areas.length === 0;
-        var keys = value.split(/\s+/);
-        for (var i = 0; i < keys.length; i++) {
-          if (areas.indexOf(keys[i]) !== -1) return true;
-        }
-        return false;
-      }
-
-      function scanCards() {
-        cards = Array.prototype.filter.call(
-          list.children,
-          function (el) { return !el.classList.contains("w-embed"); }
+        var btns     = Array.prototype.slice.call(
+          nav.querySelectorAll("button[" + cfg.btnAttr + "]")
         );
-      }
+        var emptyEl  = list.querySelector("[" + cfg.emptyAttr + "]");
+        var cards    = [];
+        var currentValue = "all";
+        var select   = null;
+        var selectId = cfg.selectPrefix + listId;
 
-      function updateButtonStates() {
-        btns.forEach(function (btn) {
-          var val = btn.getAttribute("data-person-filter-value");
-          if (val === "all") {
-            btn.classList.remove("is-disabled");
-            btn.disabled = false;
-            btn.removeAttribute("aria-disabled");
-            return;
-          }
-          var hasMatch = false;
-          for (var i = 0; i < cards.length; i++) {
-            if (cardMatches(cards[i], val)) { hasMatch = true; break; }
-          }
-          btn.classList.toggle("is-disabled", !hasMatch);
-          btn.disabled = !hasMatch;
-          if (!hasMatch) btn.setAttribute("aria-disabled", "true");
-          else           btn.removeAttribute("aria-disabled");
-        });
-      }
+        /* Screenreader-Statusmeldung – NACH dem nav, nicht darin (nav ist Flex-Zeile) */
+        var statusEl = document.createElement("span");
+        statusEl.setAttribute("aria-live", "polite");
+        statusEl.setAttribute("aria-atomic", "true");
+        statusEl.className = "sr-only";
+        nav.insertAdjacentElement("afterend", statusEl);
 
-      function updateSelectState() {
-        if (!select) return;
-        Array.prototype.forEach.call(select.options, function (opt) {
-          var disabled = false;
-          for (var i = 0; i < btns.length; i++) {
-            if (btns[i].getAttribute("data-person-filter-value") === opt.value) {
-              disabled = btns[i].disabled;
-              break;
+        /* ---- Hilfsfunktionen ---- */
+        function areasOf(card) {
+          var raw = (card.getAttribute(cfg.areaAttr) || "").trim();
+          return raw ? raw.split(/\s+/) : [];
+        }
+
+        function cardMatches(card, value) {
+          if (value === "all") return true;
+          var areas = areasOf(card);
+          if (value === "none") return areas.length === 0;
+          var keys = value.split(/\s+/);
+          for (var i = 0; i < keys.length; i++) {
+            if (areas.indexOf(keys[i]) !== -1) return true;
+          }
+          return false;
+        }
+
+        function scanCards() {
+          cards = Array.prototype.filter.call(
+            list.children,
+            function (el) {
+              return !el.classList.contains("w-embed") &&
+                     !el.hasAttribute(cfg.emptyAttr);
             }
+          );
+        }
+
+        function updateButtonStates() {
+          btns.forEach(function (btn) {
+            var val = btn.getAttribute(cfg.btnAttr);
+            if (val === "all") {
+              btn.classList.remove("is-disabled");
+              btn.disabled = false;
+              btn.removeAttribute("aria-disabled");
+              return;
+            }
+            var hasMatch = false;
+            for (var i = 0; i < cards.length; i++) {
+              if (cardMatches(cards[i], val)) { hasMatch = true; break; }
+            }
+            btn.classList.toggle("is-disabled", !hasMatch);
+            btn.disabled = !hasMatch;
+            if (!hasMatch) btn.setAttribute("aria-disabled", "true");
+            else           btn.removeAttribute("aria-disabled");
+          });
+        }
+
+        function updateSelectState() {
+          if (!select) return;
+          Array.prototype.forEach.call(select.options, function (opt) {
+            var disabled = false;
+            for (var i = 0; i < btns.length; i++) {
+              if (btns[i].getAttribute(cfg.btnAttr) === opt.value) {
+                disabled = btns[i].disabled;
+                break;
+              }
+            }
+            opt.disabled = disabled;
+          });
+          select.value = currentValue;
+        }
+
+        function applyFilter(value) {
+          currentValue = value;
+          var count = 0;
+
+          cards.forEach(function (card) {
+            var show = cardMatches(card, value);
+            card.style.display = show ? "" : "none";
+            if (show) count++;
+          });
+
+          if (emptyEl) emptyEl.style.display = count === 0 ? "block" : "";
+
+          btns.forEach(function (btn) {
+            var active = btn.getAttribute(cfg.btnAttr) === value;
+            btn.classList.toggle("is-active", active);
+            btn.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+
+          if (select) select.value = value;
+
+          statusEl.textContent =
+            count + (count === 1 ? cfg.singular : cfg.plural) + " angezeigt";
+        }
+
+        function refresh() {
+          scanCards();
+          updateButtonStates();
+          applyFilter(currentValue);
+          updateSelectState();
+        }
+
+        function valueFromHash() {
+          var hash = location.hash.replace("#", "");
+          if (!hash) return "all";
+          if (hash === cfg.hashNone) return "none";
+          if (hash.indexOf(cfg.hashPrefix) !== 0) return "all";
+          var key = hash.slice(cfg.hashPrefix.length);
+          for (var i = 0; i < btns.length; i++) {
+            var val = (btns[i].getAttribute(cfg.btnAttr) || "").trim();
+            if (val === key || val.split(/\s+/)[0] === key) return val;
           }
-          opt.disabled = disabled;
+          return "all";
+        }
+
+        function pushHash(value) {
+          var target = "";
+          if (value === "none") {
+            target = "#" + cfg.hashNone;
+          } else if (value !== "all") {
+            target = "#" + cfg.hashPrefix + value.split(/\s+/)[0];
+          }
+          if (history.replaceState) {
+            history.replaceState(null, "", target || location.pathname + location.search);
+          }
+        }
+
+        /* ---- Natives <select> für Mobil ---- */
+        function buildSelect() {
+          var existing = document.getElementById(selectId);
+          if (existing) { select = existing; return; } // idempotent
+
+          var label = document.createElement("label");
+          label.className = "experts-filter-label";
+          label.htmlFor = selectId;
+          label.textContent = "Bereich";
+
+          select = document.createElement("select");
+          select.className = "experts-filter-select";
+          select.id = selectId;
+
+          btns.forEach(function (btn) {
+            var opt    = document.createElement("option");
+            var textEl = btn.querySelector(".glossary-btn-text");
+            opt.textContent = (textEl ? textEl.textContent : btn.textContent).trim();
+            opt.value  = btn.getAttribute(cfg.btnAttr);
+            select.appendChild(opt);
+          });
+
+          select.addEventListener("change", function () {
+            applyFilter(select.value);
+            pushHash(select.value);
+          });
+
+          /* DOM-Reihenfolge: nav | label | select | statusEl */
+          nav.insertAdjacentElement("afterend", select);
+          nav.insertAdjacentElement("afterend", label);
+        }
+
+        /* ---- Event-Handler ---- */
+        nav.addEventListener("click", function (e) {
+          var btn = e.target.closest("button[" + cfg.btnAttr + "]");
+          if (!btn || btn.disabled) return;
+          var value = btn.getAttribute(cfg.btnAttr);
+          applyFilter(value);
+          pushHash(value);
         });
-        select.value = currentValue;
-      }
 
-      function applyFilter(value) {
-        currentValue = value;
-        var count = 0;
-
-        cards.forEach(function (card) {
-          var show = cardMatches(card, value);
-          card.style.display = show ? "" : "none";
-          if (show) count++;
+        window.addEventListener("hashchange", function () {
+          applyFilter(valueFromHash());
         });
 
-        if (emptyEl) emptyEl.style.display = count === 0 ? "block" : "";
+        nav._oedivRefresh = refresh;
 
-        btns.forEach(function (btn) {
-          var active = btn.getAttribute("data-person-filter-value") === value;
-          btn.classList.toggle("is-active", active);
-          btn.setAttribute("aria-pressed", active ? "true" : "false");
-        });
-
-        if (select) select.value = value;
-
-        statusEl.textContent = count + (count === 1 ? " Experte" : " Experten") + " angezeigt";
-      }
-
-      function refresh() {
+        /* ---- Startzustand ---- */
         scanCards();
+        buildSelect();
         updateButtonStates();
+        currentValue = valueFromHash();
         applyFilter(currentValue);
         updateSelectState();
-      }
-
-      function valueFromHash() {
-        var hash = location.hash.replace("#", "");
-        if (!hash) return "all";
-        if (hash === HASH_NONE) return "none";
-        if (hash.indexOf(HASH_PREFIX) !== 0) return "all";
-        var key = hash.slice(HASH_PREFIX.length);
-        /* Button suchen, dessen erster Key mit dem Hash übereinstimmt */
-        for (var i = 0; i < btns.length; i++) {
-          var val = (btns[i].getAttribute("data-person-filter-value") || "").trim();
-          if (val === key || val.split(/\s+/)[0] === key) return val;
-        }
-        return "all";
-      }
-
-      function pushHash(value) {
-        var target = "";
-        if (value === "none") {
-          target = "#" + HASH_NONE;
-        } else if (value !== "all") {
-          target = "#" + HASH_PREFIX + value.split(/\s+/)[0];
-        }
-        if (history.replaceState) {
-          history.replaceState(null, "", target || location.pathname + location.search);
-        }
-      }
-
-      /* ---- Natives <select> für Mobil ---- */
-      var selectId = "experts-filter-select-" + listId;
-
-      function buildSelect() {
-        var existing = document.getElementById(selectId);
-        if (existing) { select = existing; return; } // idempotent
-
-        var label = document.createElement("label");
-        label.className = "experts-filter-label";
-        label.htmlFor = selectId;
-        label.textContent = "Bereich";
-
-        select = document.createElement("select");
-        select.className = "experts-filter-select";
-        select.id = selectId;
-
-        btns.forEach(function (btn) {
-          var opt    = document.createElement("option");
-          var textEl = btn.querySelector(".glossary-btn-text");
-          opt.textContent = (textEl ? textEl.textContent : btn.textContent).trim();
-          opt.value  = btn.getAttribute("data-person-filter-value");
-          select.appendChild(opt);
-        });
-
-        select.addEventListener("change", function () {
-          applyFilter(select.value);
-          pushHash(select.value);
-        });
-
-        /* label dann select – DOM-Reihenfolge: nav | label | select */
-        nav.insertAdjacentElement("afterend", select);
-        nav.insertAdjacentElement("afterend", label);
-      }
-
-      /* ---- Event-Handler ---- */
-      nav.addEventListener("click", function (e) {
-        var btn = e.target.closest("button[data-person-filter-value]");
-        if (!btn || btn.disabled) return;
-        var value = btn.getAttribute("data-person-filter-value");
-        applyFilter(value);
-        pushHash(value);
       });
+    }
 
-      window.addEventListener("hashchange", function () {
-        applyFilter(valueFromHash());
-      });
-
-      nav._oedivRefresh = refresh;
-
-      /* ---- Startzustand ---- */
-      scanCards();
-      buildSelect();
-      updateButtonStates();
-      currentValue = valueFromHash();
-      applyFilter(currentValue);
-      updateSelectState();
-    });
+    FILTER_CONFIGS.forEach(initFilter);
   });
 })();
 
@@ -5545,12 +5581,14 @@ function onReady(fn){
       );
     }
 
-    /* Experten-Filter: Nav(s) neu scannen, die auf diesen Container zeigen */
+    /* Karten-Filter (Experten + Blog-Insights): Nav(s) neu scannen */
     if (listId) {
-      Array.prototype.forEach.call(
-        document.querySelectorAll('nav[data-person-filter="' + listId + '"]'),
-        function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
-      );
+      ["data-person-filter", "data-insight-filter"].forEach(function (attr) {
+        Array.prototype.forEach.call(
+          document.querySelectorAll('nav[' + attr + '="' + listId + '"]'),
+          function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
+        );
+      });
     }
   });
 })();
