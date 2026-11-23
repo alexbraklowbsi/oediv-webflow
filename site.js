@@ -61,6 +61,30 @@ function onReady(fn){
   });
 })();
 
+/* =========================================================
+   Breadcrumb – Trenn-Icons vor Screenreadern verbergen
+   Jedes direkte Kind von nav[aria-label="breadcrumb"], das
+   kein <a> ist und ein .g-material-icon-text enthält,
+   bekommt aria-hidden="true" (idempotent).
+   ========================================================= */
+(function () {
+  onReady(function () {
+    "use strict";
+    var navs = Array.prototype.slice.call(
+      document.querySelectorAll('nav[aria-label="breadcrumb"]')
+    );
+    navs.forEach(function (nav) {
+      Array.prototype.forEach.call(nav.children, function (child) {
+        if (child.tagName === "A") return;
+        if (!child.querySelector(".g-material-icon-text")) return;
+        if (!child.hasAttribute("aria-hidden")) {
+          child.setAttribute("aria-hidden", "true");
+        }
+      });
+    });
+  });
+})();
+
 (function () {
   /*
    * Mega Menu
@@ -5154,6 +5178,18 @@ function onReady(fn){
         selectPrefix: "case-filter-select-",
         singular:     " Case",
         plural:       " Cases"
+      },
+      {
+        navAttr:      "data-whitepaper-filter",
+        btnAttr:      "data-whitepaper-filter-value",
+        areaAttr:     "data-whitepaper-area",
+        emptyAttr:    "data-whitepaper-empty",
+        initKey:      "whitepaperFilterInit",
+        hashPrefix:   "whitepaper-",
+        hashNone:     "whitepaper-weitere",
+        selectPrefix: "whitepaper-filter-select-",
+        singular:     " Whitepaper",
+        plural:       " Whitepaper"
       }
     ];
 
@@ -5596,9 +5632,9 @@ function onReady(fn){
       );
     }
 
-    /* Karten-Filter (Experten + Blog-Insights + Cases): Nav(s) neu scannen */
+    /* Karten-Filter (Experten + Blog-Insights + Cases + Whitepaper): Nav(s) neu scannen */
     if (listId) {
-      ["data-person-filter", "data-insight-filter", "data-case-filter"].forEach(function (attr) {
+      ["data-person-filter", "data-insight-filter", "data-case-filter", "data-whitepaper-filter"].forEach(function (attr) {
         Array.prototype.forEach.call(
           document.querySelectorAll('nav[' + attr + '="' + listId + '"]'),
           function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
