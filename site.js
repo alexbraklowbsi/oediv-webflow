@@ -5142,6 +5142,18 @@ function onReady(fn){
         selectPrefix: "insight-filter-select-",
         singular:     " Beitrag",
         plural:       " Beiträge"
+      },
+      {
+        navAttr:      "data-case-filter",
+        btnAttr:      "data-case-filter-value",
+        areaAttr:     "data-case-area",
+        emptyAttr:    "data-case-empty",
+        initKey:      "caseFilterInit",
+        hashPrefix:   "cases-",
+        hashNone:     "cases-weitere",
+        selectPrefix: "case-filter-select-",
+        singular:     " Case",
+        plural:       " Cases"
       }
     ];
 
@@ -5161,7 +5173,10 @@ function onReady(fn){
         var btns     = Array.prototype.slice.call(
           nav.querySelectorAll("button[" + cfg.btnAttr + "]")
         );
-        var emptyEl  = list.querySelector("[" + cfg.emptyAttr + "]");
+        /* Leerzustand: erst in der Liste, sonst direkt dahinter (Blog/Cases) */
+        var emptyEl  = list.querySelector("[" + cfg.emptyAttr + "]") ||
+          (list.nextElementSibling && list.nextElementSibling.hasAttribute(cfg.emptyAttr)
+            ? list.nextElementSibling : null);
         var cards    = [];
         var currentValue = "all";
         var select   = null;
@@ -5581,9 +5596,9 @@ function onReady(fn){
       );
     }
 
-    /* Karten-Filter (Experten + Blog-Insights): Nav(s) neu scannen */
+    /* Karten-Filter (Experten + Blog-Insights + Cases): Nav(s) neu scannen */
     if (listId) {
-      ["data-person-filter", "data-insight-filter"].forEach(function (attr) {
+      ["data-person-filter", "data-insight-filter", "data-case-filter"].forEach(function (attr) {
         Array.prototype.forEach.call(
           document.querySelectorAll('nav[' + attr + '="' + listId + '"]'),
           function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
