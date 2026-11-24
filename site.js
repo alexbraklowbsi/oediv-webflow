@@ -5190,6 +5190,18 @@ function onReady(fn){
         selectPrefix: "whitepaper-filter-select-",
         singular:     " Whitepaper",
         plural:       " Whitepaper"
+      },
+      {
+        navAttr:      "data-webinar-filter",
+        btnAttr:      "data-webinar-filter-value",
+        areaAttr:     "data-webinar-area",
+        emptyAttr:    "data-webinar-empty",
+        initKey:      "webinarFilterInit",
+        hashPrefix:   "webinare-",
+        hashNone:     "webinare-weitere",
+        selectPrefix: "webinar-filter-select-",
+        singular:     " Webinar",
+        plural:       " Webinare"
       }
     ];
 
@@ -5634,7 +5646,7 @@ function onReady(fn){
 
     /* Karten-Filter (Experten + Blog-Insights + Cases + Whitepaper): Nav(s) neu scannen */
     if (listId) {
-      ["data-person-filter", "data-insight-filter", "data-case-filter", "data-whitepaper-filter"].forEach(function (attr) {
+      ["data-person-filter", "data-insight-filter", "data-case-filter", "data-whitepaper-filter", "data-webinar-filter"].forEach(function (attr) {
         Array.prototype.forEach.call(
           document.querySelectorAll('nav[' + attr + '="' + listId + '"]'),
           function (nav) { if (nav._oedivRefresh) nav._oedivRefresh(); }
