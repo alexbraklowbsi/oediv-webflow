@@ -1248,3 +1248,66 @@ p.details-old-version {
   border-color: var(--oediv-blau-40, #d9dde3);
   color: var(--oediv-blau);
 }
+
+/* =========================================================
+   Footer Custom Code – Standort-Tabs, Maps, List Paging,
+   Experten-Grid
+   ========================================================= */
+
+/* Standort-Tabs: Crossfade für Cards & Bilder (.is-active = Zustands-Marker aus dem JS) */
+[data-location-card] { transition: opacity 320ms ease; }
+.location-card-wrapper { grid-area: 1 / 1; }
+[data-location-image] { transition: opacity 500ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  [data-location-card],
+  [data-location-image] { transition: none; }
+}
+
+/* Map-Boxen mit DSGVO-Platzhalter */
+.is-map-wrapper { position: relative; min-height: 360px; overflow: hidden; }
+.map-consent {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; padding: 1.5rem; text-align: center;
+  background: var(--white, #fff);
+}
+.map-consent .paragraph { max-width: 34rem; margin: 0; font-size: 0.875rem; }
+.map-consent a { text-decoration: underline; }
+.is-map-wrapper iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* List Paging */
+[data-paging-hidden] { display: none !important; }
+.paging-control { display: flex; justify-content: center; margin-top: 2.5rem; }
+[data-paging-control][data-paging-done] { display: none !important; }
+.paging-status {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+@keyframes pagingIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+[data-paging-new] { animation: pagingIn 0.4s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  [data-paging-new] { animation: none; }
+}
+
+/* Experten-Teaser-Grid (Pillar): 1 Experte = volle Breite, sonst max. 2 Spalten */
+.expert-teaser-wrapper-pillar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(22rem, calc(50% - 1rem))), 1fr));
+  gap: 20px;
+}
+.expert-teaser-wrapper-pillar > *,
+.expert-teaser-wrapper-pillar .load-content > * {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  grid-area: auto !important;
+}
+.expert-teaser-wrapper-pillar .w-embed,
+.expert-teaser-wrapper-pillar .load-content { display: contents; }
+.expert-teaser-wrapper-pillar script,
+.expert-teaser-wrapper-pillar style,
+.expert-teaser-wrapper-pillar > :empty { display: none; }
+.expert-teaser-wrapper-pillar .w-embed::before,
+.expert-teaser-wrapper-pillar .w-embed::after { content: none; display: none; }

@@ -5617,6 +5617,503 @@ function onReady(fn){
    Hier werden Slider, Counter und Filter für den betroffenen
    Container neu initialisiert (alle Ops idempotent).
    ========================================================= */
+/*
+ * Standort-Tabs – tauscht Card + Hintergrundbild per Schlüssel.
+ * Kopplung: [data-location-tab] / [data-location-card] / [data-location-image]
+ * Elegant via Opacity-Crossfade; .is-active bleibt der Zustands-Marker.
+ */
+(function () {
+
+  onReady(function () {
+    "use strict";
+
+    var section = document.querySelector(".is-standorte") || document;
+
+    var tabs = Array.prototype.slice.call(
+      section.querySelectorAll("[data-location-tab]")
+    );
+    var cards = Array.prototype.slice.call(
+      section.querySelectorAll("[data-location-card]")
+    );
+    var images = Array.prototype.slice.call(
+      section.querySelectorAll("[data-location-image]")
+    );
+    if (!tabs.length || !cards.length) return;
+
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    // Cards überlagern sich zum Crossfaden -> Wrapper als Grid-Stapel
+    var cardParent = cards[0].parentNode;
+    cardParent.style.display = "grid";
+
+    function byKey(list, key) {
+      for (var i = 0; i < list.length; i++) {
+        if (
+          (list[i].getAttribute("data-location-card") ||
+            list[i].getAttribute("data-location-image")) === key
+        ) return list[i];
+      }
+      return null;
+    }
+
+    // Grundzustand: nur aktive Elemente sichtbar, Rest ausgeblendet (aber im Fluss)
+    function prime(list) {
+      list.forEach(function (el) {
+        var on = el.classList.contains("is-active");
+        el.style.opacity = on ? "1" : "0";
+        el.style.pointerEvents = on ? "" : "none";
+        if (!on) el.setAttribute("aria-hidden", "true");
+        else el.removeAttribute("aria-hidden");
+      });
+    }
+    prime(cards);
+    prime(images);
+
+    function activate(key) {
+      // Tabs: Klasse + a11y
+      tabs.forEach(function (t) {
+        var on = t.getAttribute("data-location-tab") === key;
+        t.classList.toggle("is-active", on);
+        if (on) t.setAttribute("aria-current", "true");
+        else t.removeAttribute("aria-current");
+      });
+
+      crossfade(cards, "data-location-card", key);
+      crossfade(images, "data-location-image", key);
+    }
+
+    function crossfade(list, attr, key) {
+      list.forEach(function (el) {
+        var on = el.getAttribute(attr) === key;
+        el.classList.toggle("is-active", on);
+        el.style.opacity = on ? "1" : "0";
+        el.style.pointerEvents = on ? "" : "none";
+        if (on) el.removeAttribute("aria-hidden");
+        else el.setAttribute("aria-hidden", "true");
+      });
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function (e) {
+        e.preventDefault();
+        var key = tab.getAttribute("data-location-tab");
+        if (tab.classList.contains("is-active") && byKey(cards, key)) {
+          // schon aktiv -> nichts tun
+          if (
+            cards.filter(function (c) { return c.classList.contains("is-active"); })[0] ===
+            byKey(cards, key)
+          ) return;
+        }
+        activate(key);
+      });
+    });
+  });
+})();
+
+/*
+ * Standort-Karten mit Einwilligung (DSGVO)
+ * - Map-Box: [id^="load-map-"] oder [data-map-query]
+ * - Suchtext (Reihenfolge):
+ *     1. data-map-query (kompletter Suchtext)
+ *     2. Koordinaten: data-map-coords > COORDS[standort]
+ *     3. Name + Adresse – nur wenn data-map-name oder NAME_OVERRIDES gesetzt
+ *     4. Adresse aus <strong> in .lr-gridbox-text-summary (Standard)
+ * - Erst Platzhalter + "Karte laden"; Klick lädt ALLE Karten der Seite
+ * - Einwilligung gilt für die Browser-Sitzung (sessionStorage)
+ * - "Auf Google Maps anzeigen"-Links mit href="#" werden automatisch befüllt
+ */
+(function () {
+
+  onReady(function () {
+    "use strict";
+
+    /* ---- Konfiguration ---- */
+    var PRIVACY_URL = "/datenschutz";        // Link zur Datenschutzerklärung
+    var STORAGE_KEY = "oediv-maps-consent";
+    var REMEMBER_CONSENT = true;              // false = bei jedem Seitenaufruf neu fragen
+
+    // Schlüssel = Teil nach "load-map-" (z. B. "chemnitz")
+    // Nur eintragen, wenn die Suche in Google Maps nachweislich den Eintrag findet.
+    var NAME_OVERRIDES = {
+      chemnitz: "OEDIV HR Services"
+    };
+
+    // Sicherste Variante: Koordinaten (Rechtsklick in Google Maps -> oberster Eintrag)
+    var COORDS = {
+      // chemnitz: "50.8123, 12.9456"
+    };
+
+    var maps = Array.prototype.slice.call(
+      document.querySelectorAll('[id^="load-map-"], [data-map-query]')
+    );
+    if (!maps.length) return;
+
+    function clean(text) {
+      return (text || "")
+        .replace(/\s*·\s*/g, ", ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function getKey(el) {
+      return (el.id || "").replace(/^load-map-/, "").toLowerCase();
+    }
+
+    function getAddress(el) {
+      var grid = el.closest(".left-right-grid") || el.parentNode;
+      var strong = grid && grid.querySelector(".lr-gridbox-text-summary strong");
+      return strong ? clean(strong.textContent) : "";
+    }
+
+    function getQuery(el) {
+      var key = getKey(el);
+
+      var manual = el.getAttribute("data-map-query");
+      if (manual) return clean(manual);
+
+      var coords = el.getAttribute("data-map-coords") || COORDS[key];
+      if (coords) return clean(coords);
+
+      var address = getAddress(el);
+      var name = el.getAttribute("data-map-name") || NAME_OVERRIDES[key];
+
+      if (name && address) {
+        name = clean(name);
+        if (address.toLowerCase().indexOf(name.toLowerCase()) !== -1) return address;
+        return name + ", " + address;
+      }
+
+      return address || ("OEDIV " + key);
+    }
+
+    function hasConsent() {
+      try { return sessionStorage.getItem(STORAGE_KEY) === "1"; }
+      catch (e) { return false; }
+    }
+
+    function saveConsent() {
+      if (!REMEMBER_CONSENT) return;
+      try { sessionStorage.setItem(STORAGE_KEY, "1"); } catch (e) {}
+    }
+
+    function renderPlaceholder(el) {
+      if (el.querySelector("iframe, .map-consent")) return;
+
+      var box = document.createElement("div");
+      box.className = "map-consent";
+
+      var text = document.createElement("p");
+      text.className = "paragraph";
+      text.appendChild(document.createTextNode(
+        "Beim Laden der Karte werden Daten, z. B. Ihre IP-Adresse, an Google übertragen. " +
+        "Weitere Informationen finden Sie in unserer "
+      ));
+      var privacy = document.createElement("a");
+      privacy.href = PRIVACY_URL;
+      privacy.textContent = "Datenschutzerklärung";
+      text.appendChild(privacy);
+      text.appendChild(document.createTextNode("."));
+
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn-std card-btn outline";
+      var label = document.createElement("span");
+      label.className = "btn-text-span";
+      label.textContent = "Karte laden";
+      button.appendChild(label);
+
+      button.addEventListener("click", function () {
+        saveConsent();
+        loadAll();
+        var frame = el.querySelector("iframe");
+        if (frame) frame.focus();
+      });
+
+      box.appendChild(text);
+      box.appendChild(button);
+      el.appendChild(box);
+    }
+
+    function loadMap(el) {
+      if (el.querySelector("iframe")) return;
+
+      var query = getQuery(el);
+      var frame = document.createElement("iframe");
+      frame.src = "https://www.google.com/maps?q=" + encodeURIComponent(query) +
+        "&z=16&output=embed";
+      frame.title = "Karte: " + (getAddress(el) || query);
+      frame.loading = "lazy";
+      frame.referrerPolicy = "no-referrer-when-downgrade";
+      frame.allowFullscreen = true;
+
+      el.textContent = "";
+      el.appendChild(frame);
+    }
+
+    function loadAll() {
+      maps.forEach(loadMap);
+    }
+
+    // "Auf Google Maps anzeigen"-Links befüllen (nur wenn href="#" oder leer)
+    maps.forEach(function (el) {
+      var grid = el.closest(".left-right-grid");
+      if (!grid) return;
+
+      Array.prototype.forEach.call(grid.querySelectorAll("a"), function (a) {
+        var href = a.getAttribute("href");
+        if (!/google\s*maps/i.test(a.textContent)) return;
+        if (href && href !== "#") return;
+
+        a.href = "https://www.google.com/maps/search/?api=1&query=" +
+          encodeURIComponent(getQuery(el));
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      });
+    });
+
+    if (hasConsent()) loadAll();
+    else maps.forEach(renderPlaceholder);
+  });
+})();
+
+/*
+ * List Paging / "Mehr laden"
+ * Container:  data-paging-initial="3"  [data-paging-step] [data-paging-param]
+ *             [data-paging-label] [data-paging-items]
+ * Kacheln:    direkte Kinder mit data-cms-component="*-card" oder data-paging-item
+ * Ausnahmen:  Highlight (data-newsteaser-highlight-box="true" / .is-highlight)
+ *             und data-paging-ignore = immer sichtbar, zählen nicht mit
+ *             Bereits ausgeblendete Kacheln (w-condition-invisible, display:none) zählen nicht
+ * Steuerung:  [data-paging-control="<container-id>"] mit [data-paging-button] darin
+ *             (fehlt sie, wird sie erzeugt)
+ * URL:        ?page=n (replaceState), ab Seite 2 robots "noindex, follow"
+ */
+(function () {
+
+  onReady(function () {
+    "use strict";
+
+    var lists = Array.prototype.slice.call(document.querySelectorAll("[data-paging-initial]"));
+    if (!lists.length) return;
+
+    var DEFAULT_ITEMS = ':scope > [data-cms-component$="-card"], :scope > [data-paging-item]';
+    var IGNORE = '[data-paging-ignore], [data-newsteaser-highlight-box="true"], .is-highlight';
+    var DEFAULT_LABEL = "Mehr laden";
+    var NEW_ITEM_MS = 600;
+    var instances = [];
+    var uid = 0;
+
+    /* ---------- robots meta ---------- */
+    var robotsMeta = document.querySelector('meta[name="robots"]');
+    var robotsOriginal = robotsMeta ? robotsMeta.getAttribute("content") : null;
+    var robotsCreated = false;
+
+    function updateRobots() {
+      var paged = instances.some(function (inst) { return inst.page > 1; });
+      if (paged) {
+        if (!robotsMeta) {
+          robotsMeta = document.createElement("meta");
+          robotsMeta.name = "robots";
+          document.head.appendChild(robotsMeta);
+          robotsCreated = true;
+        }
+        robotsMeta.setAttribute("content", "noindex, follow");
+      } else if (robotsMeta) {
+        if (robotsCreated) {
+          robotsMeta.parentNode.removeChild(robotsMeta);
+          robotsMeta = null;
+          robotsCreated = false;
+        } else {
+          robotsMeta.setAttribute("content", robotsOriginal);
+        }
+      }
+    }
+
+    /* ---------- helpers ---------- */
+    function toInt(value, fallback) {
+      var n = parseInt(value, 10);
+      return isNaN(n) || n < 1 ? fallback : n;
+    }
+
+    function getCandidates(list) {
+      var selector = list.getAttribute("data-paging-items") || DEFAULT_ITEMS;
+      var items;
+      try { items = Array.prototype.slice.call(list.querySelectorAll(selector)); }
+      catch (e) { items = []; }
+      if (!items.length) items = Array.prototype.slice.call(list.children);
+      return items.filter(function (el) { return !el.matches(IGNORE); });
+    }
+
+    // Nur Kacheln, die ohne Paging tatsächlich sichtbar wären
+    function getItems(list) {
+      var candidates = getCandidates(list);
+      candidates.forEach(function (el) { el.removeAttribute("data-paging-hidden"); });
+      return candidates.filter(function (el) {
+        if (el.classList.contains("w-condition-invisible")) return false;
+        return window.getComputedStyle(el).display !== "none";
+      });
+    }
+
+    function readPage(param) {
+      try { return toInt(new URL(window.location.href).searchParams.get(param), 1); }
+      catch (e) { return 1; }
+    }
+
+    function writePage(param, page) {
+      try {
+        var url = new URL(window.location.href);
+        if (page > 1) url.searchParams.set(param, page);
+        else url.searchParams.delete(param);
+        if (url.href !== window.location.href) {
+          window.history.replaceState(window.history.state, "", url.href);
+        }
+      } catch (e) {}
+    }
+
+    function pageUrl(param, page) {
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.set(param, page);
+        return url.pathname + url.search + url.hash;
+      } catch (e) { return "#"; }
+    }
+
+    /* ---------- control ---------- */
+    function buildControl(list, label) {
+      var wrap = document.createElement("div");
+      wrap.className = "paging-control";
+      wrap.setAttribute("data-paging-control", list.id);
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-std outline";
+      btn.setAttribute("data-paging-button", "");
+
+      var span = document.createElement("span");
+      span.className = "btn-text-span";
+      span.textContent = label;
+
+      btn.appendChild(span);
+      wrap.appendChild(btn);
+      list.parentNode.insertBefore(wrap, list.nextSibling);
+      return wrap;
+    }
+
+    function findButton(control) {
+      if (control.matches("a, button, [data-paging-button]")) return control;
+      return control.querySelector("[data-paging-button]") || control.querySelector("a, button");
+    }
+
+    /* ---------- instance ---------- */
+    function setup(list) {
+      if (!list.id) list.id = "paging-list-" + (++uid);
+
+      var initial = toInt(list.getAttribute("data-paging-initial"), 3);
+      var step = toInt(list.getAttribute("data-paging-step"), initial);
+      var param = list.getAttribute("data-paging-param") || "page";
+      var label = list.getAttribute("data-paging-label") || DEFAULT_LABEL;
+
+      var control = document.querySelector('[data-paging-control="' + list.id + '"]') ||
+        buildControl(list, label);
+      var button = findButton(control);
+      if (!button) return;
+
+      var status = document.createElement("p");
+      status.className = "paging-status";
+      status.setAttribute("aria-live", "polite");
+      control.parentNode.insertBefore(status, control.nextSibling);
+
+      button.setAttribute("aria-controls", list.id);
+      if (button.tagName === "A") button.setAttribute("role", "button");
+
+      var inst = {
+        list: list,
+        initial: initial,
+        step: step,
+        param: param,
+        shown: initial + (readPage(param) - 1) * step,
+        page: 1
+      };
+      instances.push(inst);
+
+      function render(announce) {
+        var items = getItems(list);
+        var total = items.length;
+        var visible = Math.min(inst.shown, total);
+        if (visible < Math.min(initial, total)) visible = Math.min(initial, total);
+
+        items.forEach(function (el, i) {
+          if (i >= visible) el.setAttribute("data-paging-hidden", "");
+        });
+
+        // Seite aus sichtbarer Anzahl ableiten (korrigiert ungültige URL-Werte)
+        inst.page = visible <= initial ? 1 : Math.ceil((visible - initial) / step) + 1;
+        inst.shown = initial + (inst.page - 1) * step;
+
+        var done = visible >= total;
+        if (done) control.setAttribute("data-paging-done", "");
+        else control.removeAttribute("data-paging-done");
+
+        if (button.tagName === "A") button.setAttribute("href", pageUrl(param, inst.page + 1));
+
+        if (announce) status.textContent = visible + " von " + total + " Beiträgen angezeigt";
+
+        writePage(param, inst.page);
+        updateRobots();
+        return items;
+      }
+
+      button.addEventListener("click", function (e) {
+        e.preventDefault();
+        var before = Math.min(inst.shown, getItems(list).length);
+        inst.shown += step;
+        var items = render(true);
+
+        var newItems = items.slice(before, Math.min(inst.shown, items.length));
+        newItems.forEach(function (el) {
+          el.setAttribute("data-paging-new", "");
+          setTimeout(function () { el.removeAttribute("data-paging-new"); }, NEW_ITEM_MS);
+        });
+
+        var first = newItems[0];
+        if (first) {
+          var focusable = first.matches("a, button, [tabindex]") ? first :
+            first.querySelector("a, button, [tabindex]");
+          if (!focusable) {
+            first.setAttribute("tabindex", "-1");
+            focusable = first;
+          }
+          focusable.focus();
+        }
+      });
+
+      // Sortierung/Filter ändern die Reihenfolge, Breakpoints die Sichtbarkeit -> neu verteilen
+      var scheduled = false;
+      function schedule() {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(function () {
+          scheduled = false;
+          render(false);
+        });
+      }
+
+      new MutationObserver(schedule).observe(list, { childList: true });
+
+      var lastWidth = window.innerWidth;
+      window.addEventListener("resize", function () {
+        if (window.innerWidth === lastWidth) return;
+        lastWidth = window.innerWidth;
+        schedule();
+      });
+
+      render(false);
+    }
+
+    lists.forEach(setup);
+  });
+})();
+
 (function () {
   "use strict";
 
